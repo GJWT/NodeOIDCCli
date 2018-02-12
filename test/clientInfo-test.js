@@ -1,5 +1,5 @@
-var ClientInfo = require('../src/clientInfo.js');
 var assert = require('chai').assert;
+var ClientInfo = require('../src/clientInfo.js');
 var urlParse = require('url-parse');
 
 describe('', function () {
@@ -140,7 +140,7 @@ describe('', function () {
 
     var res7 = this.ci.verifyAlgSupport('RS512', 'id_token', 'signing_alg')
     it('verify_alg_support', function () {
-        assert.isFalse(res7)
+        assert.isFalse(res7);
     });
 
     var res8 = this.ci.verifyAlgSupport('RSA1_5', 'userinfo', 'encryption_alg');
@@ -175,12 +175,6 @@ describe('', function () {
         assert.deepEqual(np.length, 3);
         assert.notDeepEqual(np[2], p[2]);
     });
-
-    it('import_keys', function () {
-        /*assert.deepEqual(this.ci.keyjar.getIssuerKeys('').length, 2);
-        var keySpec = {'file': {'rsa': ['salesforce.key']}};
-        assert.deepEqual(this.ci.keyjar.getIssuerKeys('').length, 3); */
-    });        
 });
 
 describe('client info tests', function () {
@@ -244,7 +238,7 @@ describe('client filename', function () {
     };
     var ci = new ClientInfo();
     ci.init(null, config); 
-    var fname = ci.filenameFromWebName('https://example.com/rq12345')
+    var fname = ci.filenameFromWebName('https://example.com/rq12345');
     
     it('client filename', function () {
         assert.deepEqual(fname, 'rq12345');

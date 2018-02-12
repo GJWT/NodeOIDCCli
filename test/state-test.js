@@ -1,10 +1,10 @@
-var State = require('../src/state.js').State;
-var ExpiredToken = require('../src/state.js').ExpiredToken;
+var AccessTokenResponse = require('../oicMsg/oauth2/init').AccessTokenResponse;
 var assert = require('chai').assert;
-var urlParse = require('url-parse');
 var AuthorizationRequest = require('../oicMsg/oauth2/init').AuthorizationRequest;
 var AuthorizationResponse = require('../oicMsg/oauth2/init').AuthorizationResponse;
-var AccessTokenResponse = require('../oicMsg/oauth2/init').AccessTokenResponse;
+var ExpiredToken = require('../src/state.js').ExpiredToken;
+var State = require('../src/state.js').State;
+var urlParse = require('url-parse');
 
 var REQ_ARGS = {'redirect_uri': 'https://example.com/rp/cb', 'response_type': "code"};
 
@@ -84,7 +84,6 @@ describe('create ClientInfo instance', function () {
         var state = stateDb.createState('https://example.org/op', request);
         var aresp = new AuthorizationResponse("access grant", state);
         stateDb.addResponse(aresp);
-        
         aresp = new AccessTokenResponse({access_token : 'access token', token_type : 'Bearer', id_token : 'Dummy.JWT.foo', expires_in : 600});
         var now = Date.now();
         stateDb.addResponse(aresp, state);
@@ -96,7 +95,6 @@ describe('create ClientInfo instance', function () {
         var state = stateDb.createState('https://example.org/op', request);
         var aresp = new AuthorizationResponse("access grant", state);
         stateDb.addResponse(aresp);
-        
         aresp = new AccessTokenResponse({access_token : 'access token', token_type : 'Bearer', id_token : 'Dummy.JWT.foo', expires_in : 600});
         var now = Date.now();
         stateDb.addResponse(aresp, state);
@@ -111,7 +109,6 @@ describe('create ClientInfo instance', function () {
         var state = stateDb.createState('https://example.org/op', request);
         var aresp = new AuthorizationResponse("access grant", state);
         stateDb.addResponse(aresp);
-        
         aresp = new AccessTokenResponse({access_token : 'access token', token_type : 'Bearer', id_token : 'Dummy.JWT.foo', expires_in : 600});
         var now = Date.now() + 900;
         stateDb.addResponse(aresp, state);
@@ -127,34 +124,17 @@ describe('create ClientInfo instance', function () {
         var state = stateDb.createState('https://example.org/op', request);
         var aresp = new AuthorizationResponse("access grant", state);
         stateDb.addResponse(aresp);
-        
         var aresp1 = new AccessTokenResponse({access_token : 'access token', token_type : 'Bearer', id_token : 'Dummy.JWT.foo', expires_in : 600});
         stateDb.addResponse(aresp1, state);
-
         aresp1 = new AccessTokenResponse({access_token : '2nd access token', token_type : 'Bearer', expires_in : 120});
         stateDb.addResponse(aresp1, state);
-
         var ti = stateDb.getTokenInfo(state);
-
         assert.deepEqual(ti.access_token, '2nd access token');
-        
         var now = Date.now() + 200;
-        
         try{
             stateDb.getTokenInfo(state, now);
         }catch(err){
             assert.isNotNull(err);
         }
     });
-
-    /*
-    it('Get access token response args', function () {
-        var request = new AuthorizationRequest(REQ_ARGS);
-        var state = stateDb.createState('https://example.org/op', request);
-        var aresp = new AuthorizationResponse("access grant", state);
-        stateDb.addResponse(aresp);
-        
-        var respArgs =  stateDb.getResponseArgs(state, new AccessTokenResponse());
-        assert.deepEqual(Object.keys(respArgs).length, 3);
-    });*/
 });
