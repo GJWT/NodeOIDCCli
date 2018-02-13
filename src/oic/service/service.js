@@ -1,12 +1,15 @@
-const OAuth2Client = require('../oauth2/init').Client;
-const OicFactory = require('../oic/service/service').OicFactory;
-
-const DEFAULT_SERVICES = [
-  'Authorization', 'AccessToken', 'RefreshAccessToken', 'ProviderInfoDiscovery',
-  'UserInfo', 'Registration'
-];
-
-const MAX_AUTHENTICATION_AGE = 86400;
+const Service = require('../../service');
+const Token = require('../../../oicMsg/src/models/tokenProfiles/token');
+const Authorization = require('./authorization').Authorization;
+const AccessToken = require('./accessToken').AccessToken;
+const CheckId = require('./checkId').CheckID;
+const CheckSession = require('./checkSession').CheckSession;
+const EndSession = require('./endSession').EndSession;
+const ProviderInfoDiscovery =
+    require('./providerInfoDiscovery').ProviderInfoDiscovery;
+const RefreshAccessToken = require('./refreshAccessToken').RefreshAccessToken;
+const Registration = require('./registration').Registration;
+const UserInfo = require('./userInfo').UserInfo;
 
 const PREFERENCE2PROVIDER = {
   'require_signed_request_object': 'request_object_algs_supported',
@@ -43,34 +46,30 @@ const PROVIDER_DEFAULT = {
   'id_token_signed_response_alg': 'RS256',
 };
 
-class Client extends OAuth2Client {
-  constructor() {
-    super();
-  }
+var services = {
+  'AccessToken': AccessToken,
+  'Authorization': Authorization,
+  'CheckId': CheckId,
+  'CheckSession': CheckSession,
+  'EndSession': EndSession,
+  'ProviderInfoDiscovery': ProviderInfoDiscovery,
+  'RefreshAccessToken': RefreshAccessToken,
+  'Registration': Registration,
+  'Service': Service,
+  'UserInfo': UserInfo
+};
 
-  init(
-      caCerts, clientAuthnMethod, keyJar, verifySsl, config, clientCert,
-      httpLib, services, serviceFactory) {
-    caCerts = caCerts || null;
-    clientAuthnMethod = clientAuthnMethod || null;
-    keyJar = keyJar || null;
-    verifySsl = verifySsl || true;
-    config = config || null;
-    clientCert = clientCert || null;
-    httpLib = httpLib || null;
-    services = services || null;
-    serviceFactory = serviceFactory || null;
-
-    let srvs = services || DEFAULT_SERVICES;
-    serviceFactory = serviceFactory || OicFactory;
-    super.init(
-        clientAuthnMethod, config, caCerts, keyJar, verifySsl, clientCert,
-        httpLib, srvs, serviceFactory);
-  }
-
-  static getProviderDefault() {
-    return PROVIDER_DEFAULT;
+function OicFactory(reqName, httpLib, keyJar, clientAuthnMethod) {
+  for (let i = 0; i < Object.keys(services).length; i++) {
+    let key = Object.keys(services)[i];
+    let val = services[key];
+    if (key === reqName) {
+      if (val.prototype.init) {
+        val.prototype.init(httpLib, keyJar, clientAuthnMethod);
+      }
+      return val;
+    }
   }
 }
 
-module.exports.Client = Client;
+module.exports.OicFactory = OicFactory;
