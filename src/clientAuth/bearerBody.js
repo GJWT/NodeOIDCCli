@@ -14,11 +14,11 @@ class BearerBody extends ClientAuthnMethod {
   }
 
   /**
-   *@param {*} cis Request class instance
-   *@param {*} ci Client information
-   *@param {*} requestArgs Request arguments
-   *@param {*} httpArgs HTTP header arguments
-   *@param {*} kwargs
+   *@param {ResourceRequest} cis Request class instance
+   *@param {ClientInfo} cliInfo Client information
+   *@param {Object.<string, string>} requestArgs Request arguments
+   *@param {Object.<string, string>} httpArgs HTTP header arguments
+   *@param {Object.<string, string>} kwargs Other extra arguments
    */
   construct(cis, cliInfo, requestArgs, httpArgs, kwargs) {
     if (requestArgs === null) {
@@ -39,7 +39,7 @@ class BearerBody extends ClientAuthnMethod {
             cliInfo.stateDb.getTokenInfo(kwargs)['access_token'];
       }
     }
-    let list = [httpArgs, cis];
+    const list = [httpArgs, cis];
     return list;
   }
 
