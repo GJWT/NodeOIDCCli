@@ -25,7 +25,7 @@ class BearerBody extends ClientAuthnMethod {
       requestArgs = {};
     }
 
-    if (Object.keys(cis).indexOf('access_token') !== -1) {
+    if (cis.access_token) {
       return;
     } else {
       if (requestArgs.access_token) {
