@@ -14,11 +14,11 @@ class BearerBody extends ClientAuthnMethod {
   }
 
   /**
-   *@param {ResourceRequest} cis Request class instance
-   *@param {ClientInfo} cliInfo Client information
-   *@param {Object.<string, string>} requestArgs Request arguments
-   *@param {Object.<string, string>} httpArgs HTTP header arguments
-   *@param {Object.<string, string>} kwargs Other extra arguments
+   * @param {?ResourceRequest} cis Request class instance
+   * @param {?ClientInfo} cliInfo Client information
+   * @param {?Object.<string, string>} requestArgs Request arguments
+   * @param {?Object.<string, string>} httpArgs HTTP header arguments
+   * @param {?Object.<string, string>} kwargs Other extra arguments
    */
   construct(cis, cliInfo, requestArgs, httpArgs, kwargs) {
     if (requestArgs === null) {
@@ -28,14 +28,14 @@ class BearerBody extends ClientAuthnMethod {
     if (Object.keys(cis).indexOf('access_token') !== -1) {
       return;
     } else {
-      if (requestArgs['access_token']) {
-        cis['access_token'] = requestArgs['access_token'];
+      if (requestArgs.access_token) {
+        cis.access_token = requestArgs.access_token;
       } else {
         if (!kwargs && !cliInfo.state) {
           console.log('Missing state specification');
         }
-        kwargs['state'] = cliInfo.state;
-        cis['access_token'] =
+        kwargs.state = cliInfo.state;
+        cis.access_token =
             cliInfo.stateDb.getTokenInfo(kwargs)['access_token'];
       }
     }
@@ -45,7 +45,7 @@ class BearerBody extends ClientAuthnMethod {
 
   bearerAuth(req, authn) {
     try {
-      return req['access_token'];
+      return req.access_token;
     } catch (err) {
       assert.isTrue(authn.startsWith('Bearer '));
       return authn.substring(7, authn.length - 1);

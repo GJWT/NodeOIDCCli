@@ -32,7 +32,7 @@ function getClient() {
   client.init(CLIENT_AUTHN_METHOD, CLIENT_CONF);
   const sdb = client.clientInfo.stateDb;
   sdb.dict = {};
-  sdb.dict['ABCDE'] = {'code': 'accessCode'};
+  sdb.dict.ABCDE = {code: 'accessCode'};
   client.clientInfo.clientSecret = 'boardingPass';
   return client;
 }
@@ -44,59 +44,59 @@ describe('Test bearer body', () => {
   });
   
   it('test construct with request args', () => {
-    const requestArgs = {'access_token': 'Sesame'};
+    const requestArgs = {access_token: 'Sesame'};
     let cis = new ResourceRequest();
     const list = new BearerBody().construct(cis, client.clientInfo, requestArgs);
     const httpArgs = list[0];
     cis = list[1];
 
-    assert.deepEqual(cis['access_token'], 'Sesame');
+    assert.deepEqual(cis.access_token, 'Sesame');
     assert.deepEqual(httpArgs, undefined);
   });
 
   it('test construct with state', () => {
     const sdb = client.clientInfo.stateDb;
-    sdb['FFFFF'] = {};
+    sdb.FFFFF = {};
     const resp = new AuthorizationResponse('code', 'FFFFF')
     sdb.addResponse(resp);
     const atr = new AccessTokenResponse({
-      'access_token': '2YotnFZFEjr1zCsicMWpAA',
-      'token_type': 'example',
-      'refresh_token': 'tGzv3JOkF0XG5Qx2TlKWIA',
-      'example_parameter': 'example_value',
-      'scope': ['inner', 'outer']
+      access_token: '2YotnFZFEjr1zCsicMWpAA',
+      token_type: 'example',
+      refresh_token: 'tGzv3JOkF0XG5Qx2TlKWIA',
+      example_parameter: 'example_value',
+      scope: ['inner', 'outer'],
     });
-    sdb.addResponse(atr, {'state': 'FFFFF'});
+    sdb.addResponse(atr, {state:'FFFFF'});
     let cis = new ResourceRequest();
     const list = new BearerBody().construct(
-        cis, client.clientInfo, {}, null, {'state': 'FFFFF'}, 'inner');
+        cis, client.clientInfo, {}, null, {state:'FFFFF'}, 'inner');
     const httpArgs = list[0];
     cis = list[1];
-    assert.deepEqual(cis['access_token'], '2YotnFZFEjr1zCsicMWpAA');
+    assert.deepEqual(cis.access_token, '2YotnFZFEjr1zCsicMWpAA');
     assert.deepEqual(httpArgs, null);
   });
 
   it('test construct with request', () => {
     const sdb = client.clientInfo.stateDb;
-    sdb['EEEE'] = {};
+    sdb.EEEE = {};
     const resp = new AuthorizationResponse('auth_grant', 'EEEE');
-    new client.service['Authorization']().parseResponse(
+    new client.service.Authorization().parseResponse(
         resp, client.clientInfo, 'urlencoded');
 
     const resp2 = new AccessTokenResponse({
-      'access_token': 'token1',
-      'token_type': 'Bearer',
-      'expires_in': 0,
-      'state': 'EEEE'
+      access_token: 'token1',
+      token_type: 'Bearer',
+      expires_in: 0,
+      state: 'EEEE',
     });
-    new client.service['AccessToken']().parseResponse(
+    new client.service.AccessToken().parseResponse(
         resp2, client.clientInfo, 'urlencoded');
     let cis = new ResourceRequest();
     const list = new BearerBody().construct(
-        cis, client.clientInfo, null, null, {'state': 'EEEE'});
+        cis, client.clientInfo, null, null, {state:'EEEE'});
     const httpArgs = list[0];
     cis = list[1];
     assert.isTrue(Object.keys(cis).indexOf('access_token') !== -1);
-    assert.deepEqual(cis['access_token'], 'token1');
+    assert.deepEqual(cis.access_token, 'token1');
   });
 });
