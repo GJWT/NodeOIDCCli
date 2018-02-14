@@ -24,20 +24,18 @@ class BearerBody extends ClientAuthnMethod {
     if (requestArgs === null) {
       requestArgs = {};
     }
-
     if (cis.access_token) {
       return;
+    }
+    if (requestArgs.access_token) {
+      cis.access_token = requestArgs.access_token;
     } else {
-      if (requestArgs.access_token) {
-        cis.access_token = requestArgs.access_token;
-      } else {
-        if (!kwargs && !cliInfo.state) {
-          console.log('Missing state specification');
-        }
-        kwargs.state = cliInfo.state;
-        cis.access_token =
-            cliInfo.stateDb.getTokenInfo(kwargs)['access_token'];
+      if (!kwargs && !cliInfo.state) {
+        console.log('Missing state specification');
       }
+      kwargs.state = cliInfo.state;
+      cis.access_token =
+          cliInfo.stateDb.getTokenInfo(kwargs)['access_token'];
     }
     const list = [httpArgs, cis];
     return list;
