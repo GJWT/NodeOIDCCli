@@ -13,17 +13,11 @@ class BearerHeader extends ClientAuthnMethod {
 
   /**
    * @param {?ResourceRequest} cis Request class instance
-   * @param {?ClientInfo} ci Client information
-   * @param {?Object.<string, string>} requestArgs Request arguments
-   * @param {?Object.<string, string>} httpArgs HTTP header arguments
-   * @param {?Object.<string, string>} kwargs Other optional arguments
+   * @param {?ClientInfo} cliInfo Client information
+   * @param {?Object<string, string>} httpArgs HTTP header arguments
+   * @param {?Object<string, string>} kwargs Other optional arguments
    */
-  construct(cis, cliInfo, httpArgs, kwargs) {
-    cis = cis || null;
-    cliInfo = cliInfo || null;
-    httpArgs = httpArgs || null;
-
-    const origCis = cis;
+  construct(cis = null, cliInfo = null, httpArgs = null, kwargs) {
     let accToken = null;
     if (cis !== null) {
       if (cis.access_token) {
@@ -36,21 +30,17 @@ class BearerHeader extends ClientAuthnMethod {
           accToken = cliInfo.stateDb.getTokenInfo(kwargs).access_token;
         }
       }
-    } else {
-      try {
-        accToken = kwargs.access_token;
-      } catch (err) {
-        console.log(err);
-      }
+    } else if (kwargs.access_token){
+      accToken = kwargs.access_token;
     }
 
     const bearer = 'Bearer ' + accToken;
     if (httpArgs == null) {
       httpArgs = {headers: {}};
-      httpArgs.headers.Authorization = bearer;
+      httpArgs.headers['Authorization'] = bearer;
     } else {
       try {
-        httpArgs.headers.Authorization = bearer;
+        httpArgs.headers['Authorization'] = bearer;
       } catch (err) {
         httpArgs.headers = {Authorization: bearer};
       }

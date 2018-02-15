@@ -66,7 +66,7 @@ describe('Test bearer header', () => {
     const httpArgs = bh.construct(request, null, {headers: {xfoo: 'bar'}});
     assert.deepEqual(Object.keys(httpArgs), ['headers']);
     assert.deepEqual(Object.keys(httpArgs.headers), ['xfoo', 'Authorization']);
-    assert.deepEqual(httpArgs.headers.Authorization, 'Bearer Sesame');
+    assert.deepEqual(httpArgs.headers['Authorization'], 'Bearer Sesame');
   });
 
   it('test construct with resource request', () => {
