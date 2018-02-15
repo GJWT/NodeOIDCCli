@@ -12,48 +12,47 @@ class BearerHeader extends ClientAuthnMethod {
   }
 
   /**
-   * @param {*} cis Request class instance
-   * @param {*} ci Client information
-   * @param {*} requestArgs: request arguments
-   * @param {*} httpArgs HTTP header arguments
-   * @param {*} kwargs
+   * @param {?ResourceRequest} cis Request class instance
+   * @param {?ClientInfo} ci Client information
+   * @param {?Object.<string, string>} requestArgs Request arguments
+   * @param {?Object.<string, string>} httpArgs HTTP header arguments
+   * @param {?Object.<string, string>} kwargs Other optional arguments
    */
   construct(cis, cliInfo, httpArgs, kwargs) {
     cis = cis || null;
     cliInfo = cliInfo || null;
     httpArgs = httpArgs || null;
 
-    let origCis = cis;
+    const origCis = cis;
     let accToken = null;
     if (cis !== null) {
-      if (Object.keys(cis).indexOf('access_token') !== -1) {
-        accToken = cis['access_token'];
-        delete cis['access_token'];
+      if (cis.access_token) {
+        accToken = cis.access_token;
+        delete cis.access_token;
       } else {
-        if (kwargs && kwargs['access_token']) {
-          accToken = kwargs['access_token'];
+        if (kwargs && kwargs.access_token) {
+          accToken = kwargs.access_token;
         } else {
-          accToken = cliInfo.stateDb.getTokenInfo(kwargs)['access_token'];
+          accToken = cliInfo.stateDb.getTokenInfo(kwargs).access_token;
         }
       }
     } else {
       try {
-        accToken = kwargs['access_token'];
+        accToken = kwargs.access_token;
       } catch (err) {
         console.log(err);
       }
     }
 
-    let bearer = 'Bearer ' + accToken;
-
+    const bearer = 'Bearer ' + accToken;
     if (httpArgs == null) {
-      httpArgs = {'headers': {}};
-      httpArgs['headers']['Authorization'] = bearer;
+      httpArgs = {headers: {}};
+      httpArgs.headers.Authorization = bearer;
     } else {
       try {
-        httpArgs['headers']['Authorization'] = bearer;
+        httpArgs.headers.Authorization = bearer;
       } catch (err) {
-        httpArgs['headers'] = {'Authorization': bearer};
+        httpArgs.headers = {Authorization: bearer};
       }
     }
     return httpArgs;
