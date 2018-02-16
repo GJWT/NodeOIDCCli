@@ -18,78 +18,78 @@ const ClientSecretBasic =
 const CLIENT_ID = 'A';
 
 const CLIENT_CONF = {
-  'issuer': 'https://example.com/as',
-  'redirect_uris': ['https://example.com/cli/authz_cb'],
-  'client_secret': 'boarding pass',
-  'client_id': CLIENT_ID
+  issuer: 'https://example.com/as',
+  redirect_uris: ['https://example.com/cli/authz_cb'],
+  client_secret: 'boarding pass',
+  client_id: CLIENT_ID,
 };
 
 const REQ_ARGS = {
-  'redirect_uri': 'https://example.com/rp/cb',
-  'response_type': 'code'
+  redirect_uri: 'https://example.com/rp/cb',
+  response_type: 'code',
 };
 
 function getClient() {
-  let client = new Client();
+  const client = new Client();
   client.init(CLIENT_AUTHN_METHOD, CLIENT_CONF);
-  let sdb = client.clientInfo.stateDb;
+  const sdb = client.clientInfo.stateDb;
   sdb.dict = {};
-  sdb.dict['ABCDE'] = {'code': 'accessCode'};
+  sdb.dict['ABCDE'] = {code: 'accessCode'};
   client.clientInfo.clientSecret = 'boardingPass';
   return client;
 }
 
-describe('Test client secret basic', function() {
-  var client;
-  var httpArgs;
-  beforeEach(function() {
+describe('Test client secret basic', () => {
+  let client;
+  let httpArgs;
+  beforeEach(() => {
     client = getClient();
-    let accessToken = new client.service['AccessToken']();
+    const accessToken = new client.service.AccessToken();
     accessToken.init();
-    let cis = accessToken.construct(
+    const cis = accessToken.construct(
         client.clientInfo, {},
-        {'redirect_uri': 'http://example.com', 'state': 'ABCDE'});
-    let csb = new ClientSecretBasic();
+        {redirect_uri: 'http://example.com', state: 'ABCDE'});
+    const csb = new ClientSecretBasic();
     httpArgs = csb.construct(cis, client.clientInfo);
   });
 
-  it('test construct', function() {
-    let credentialsDict = {};
+  it('test construct', () => {
+    const credentialsDict = {};
     credentialsDict['A'] = 'boarding pass';
-    let authorizationDict = {};
+    const authorizationDict = {};
     authorizationDict['Authorization'] = credentialsDict;
-    let headersDict = {};
-    headersDict['headers'] = authorizationDict;
+    const headersDict = {};
+    headersDict.headers = authorizationDict;
     assert.deepEqual(headersDict, httpArgs);
   });
 
-  it('test does not remove padding', function() {
-    let cis = new AccessTokenRequest(
-        {'code': 'foo', 'redirect_uri': 'http://example.com'});
-    let csb = new ClientSecretBasic();
-    let httpArgs = csb.construct(
-        cis, client.client_info, null, null, {'user': 'ab', 'password': 'c'});
-    let credentialsDict = {};
+  it('test does not remove padding', () => {
+    const cis = new AccessTokenRequest(
+        {code: 'foo', redirect_uri: 'http://example.com'});
+    const csb = new ClientSecretBasic();
+    const httpArgs = csb.construct(
+        cis, client.client_info, null, null, {user: 'ab', password: 'c'});
+    const credentialsDict = {};
     credentialsDict['ab'] = 'c';
-    let authorizationDict = {};
+    const authorizationDict = {};
     authorizationDict['Authorization'] = credentialsDict;
-    let headersDict = {};
-    headersDict['headers'] = authorizationDict;
+    const headersDict = {};
+    headersDict.headers = authorizationDict;
     assert.deepEqual(headersDict, httpArgs);
   });
 
-  it('test construct cc', function() {
-    let cis = new CCAccessTokenRequest({'grant_type': 'client_credentials'});
-    let csb = new ClientSecretBasic();
-    let httpArgs = csb.construct(
+  it('test construct cc', () => {
+    const cis = new CCAccessTokenRequest({grant_type: 'client_credentials'});
+    const csb = new ClientSecretBasic();
+    const httpArgs = csb.construct(
         cis, client.client_info, null, null,
-        {'user': 'service1', 'password': 'secret'});
-    let credentialsDict = {};
+        {user: 'service1', password: 'secret'});
+    const credentialsDict = {};
     credentialsDict['service1'] = 'secret';
-    let authorizationDict = {};
+    const authorizationDict = {};
     authorizationDict['Authorization'] = credentialsDict;
-    let headersDict = {};
-    headersDict['headers'] = authorizationDict;
+    const headersDict = {};
+    headersDict.headers = authorizationDict;
     assert.deepEqual(headersDict, httpArgs);
   });
 });
