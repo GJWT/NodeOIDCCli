@@ -16,7 +16,7 @@ class BearerHeader extends ClientAuthnMethod {
    * @param {?ClientInfo} cliInfo Client information
    * @param {?Object<string, string>} httpArgs HTTP header arguments
    * @param {?Object<string, string>} kwargs Other optional arguments
-   * @return {?Object<string, string>} HTTP header arguments
+   * @return {!Object<string, string>} HTTP header arguments
    */
   construct(cis = null, cliInfo = null, httpArgs = null, kwargs) {
     let accToken = null;
