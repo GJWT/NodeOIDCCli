@@ -16,6 +16,7 @@ class BearerHeader extends ClientAuthnMethod {
    * @param {?ClientInfo} cliInfo Client information
    * @param {?Object<string, string>} httpArgs HTTP header arguments
    * @param {?Object<string, string>} kwargs Other optional arguments
+   * @return {?Object<string, string>} HTTP header arguments
    */
   construct(cis = null, cliInfo = null, httpArgs = null, kwargs) {
     let accToken = null;
@@ -30,21 +31,13 @@ class BearerHeader extends ClientAuthnMethod {
           accToken = cliInfo.stateDb.getTokenInfo(kwargs).access_token;
         }
       }
-    } else if (kwargs.access_token){
+    } else if (kwargs.access_token) {
       accToken = kwargs.access_token;
     }
-
     const bearer = 'Bearer ' + accToken;
-    if (httpArgs == null) {
-      httpArgs = {headers: {}};
-      httpArgs.headers['Authorization'] = bearer;
-    } else {
-      try {
-        httpArgs.headers['Authorization'] = bearer;
-      } catch (err) {
-        httpArgs.headers = {Authorization: bearer};
-      }
-    }
+    httpArgs = httpArgs || {};
+    httpArgs.headers = httpArgs.headers || {};
+    httpArgs.headers['Authorization'] = bearer;
     return httpArgs;
   }
 }
