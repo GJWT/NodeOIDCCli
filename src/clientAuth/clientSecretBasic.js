@@ -1,7 +1,7 @@
 /**
  * @fileoverview One of the six different client authentication / authorization
- * methods supported by OICCli that adds the corresponding authentication
- * information to the request.
+ * methods supported by OICCli that adds confidential client authentication
+ * information to the request header such as a username and password.
  */
 
 const ClientAuthnMethod = require('./clientAuth').ClientAuthnMethod;
@@ -21,38 +21,28 @@ class ClientSecretBasic extends ClientAuthnMethod {
    */
   construct(cis, cliInfo = null, requestArgs = null, httpArgs = {}, kwargs) {
     httpArgs = httpArgs || {};
-    
+
     let passwd = null;
-    if (kwargs) {
+    if (kwargs && kwargs.password) {
       passwd = kwargs.password;
     } else {
       if (httpArgs.password) {
         passwd = httpArgs.password;
       } else {
-        if (cis.client_secret) {
-          passwd = cis.client_secret;
-        } else {
-          passwd = cliInfo.client_secret;
-        }
+        passwd = cis && cis.client_secret ? cis.client_secret :
+                                            cliInfo.client_secret;
       }
     }
-    
-    let user = null;
-    if (kwargs) {
-      user = kwargs.user;
-    } else {
-      user = cliInfo.client_id;
-    }
-    httpArgs.headers = httpArgs.headers || {};
+
+    const user = kwargs && kwargs.user ? kwargs.user : cliInfo.client_id;
     const credentials = {};
     credentials[user] = passwd;
+    httpArgs.headers = httpArgs.headers || {};
     httpArgs.headers['Authorization'] = credentials;
-    try {
+    if (cis && cis.client_secret) {
       delete cis.client_secret;
-    } catch (err) {
-      console.log(err);
     }
-    if (cis.grant_type === 'authorization_code') {
+    if (cis && cis.grant_type === 'authorization_code') {
       if (!cis.client_id) {
         if (cliInfo.client_id) {
           cis.client_id = cliInfo.client_id;
@@ -61,19 +51,9 @@ class ClientSecretBasic extends ClientAuthnMethod {
         }
       }
     } else {
-      let req = null;
-      if (cis.client_id) {
-        req = cis.client_id;
-      } else {
-        req = false;
-      }
-
-      if (!req) {
-        try {
-          delete cis.client_id;
-        } catch (err) {
-          console.log(err);
-        }
+      const req = cis && cis.client_id ? cis.client_id : false
+      if (!req && cis && cis.client_id) {
+        delete cis.client_id;
       }
     }
     return httpArgs;
