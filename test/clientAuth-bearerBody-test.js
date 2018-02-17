@@ -49,7 +49,6 @@ describe('Test bearer body', () => {
     const list = new BearerBody().construct(cis, client.clientInfo, requestArgs);
     const httpArgs = list[0];
     cis = list[1];
-
     assert.deepEqual(cis.access_token, 'Sesame');
     assert.deepEqual(httpArgs, undefined);
   });
@@ -82,7 +81,6 @@ describe('Test bearer body', () => {
     const resp = new AuthorizationResponse('auth_grant', 'EEEE');
     new client.service.Authorization().parseResponse(
         resp, client.clientInfo, 'urlencoded');
-
     const resp2 = new AccessTokenResponse({
       access_token: 'token1',
       token_type: 'Bearer',
