@@ -92,4 +92,4 @@ describe('Test client secret basic', () => {
     headersDict.headers = authorizationDict;
     assert.deepEqual(headersDict, httpArgs);
   });
-});
+}); 

@@ -21,7 +21,6 @@ class ClientSecretBasic extends ClientAuthnMethod {
    */
   construct(cis, cliInfo = null, requestArgs = null, httpArgs = {}, kwargs) {
     httpArgs = httpArgs || {};
-
     let passwd = null;
     if (kwargs && kwargs.password) {
       passwd = kwargs.password;
@@ -33,7 +32,6 @@ class ClientSecretBasic extends ClientAuthnMethod {
                                             cliInfo.client_secret;
       }
     }
-
     const user = kwargs && kwargs.user ? kwargs.user : cliInfo.client_id;
     const credentials = {};
     credentials[user] = passwd;
