@@ -1,4 +1,4 @@
-## NodeOIDCCli README
+## NodeOIDCClient README
 
 OpenID Connect and OAuth2 (O/O) are both request-response protocols. The client
 sends a request and the server responds either direct on the same connection or
