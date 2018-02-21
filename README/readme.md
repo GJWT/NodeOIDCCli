@@ -111,7 +111,7 @@ arguments to add to the HTTP request.
 ### The request pipeline methods info
 *InitAuthenticationMethod*
 
-Implemented in nodeOIDCCli/src/oiccli/src/service.js.initAuthenticationMethod(). Supports
+Implemented in nodeOIDCClient/src/oiccli/src/service.js.initAuthenticationMethod(). Supports
 6 different client authentication/authorization methods : 
 
 * #### BearerBody 
