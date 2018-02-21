@@ -1,4 +1,4 @@
-## NodeOIDCCli README
+## NodeOIDCClient README
 
 OpenID Connect and OAuth2 (O/O) are both request-response protocols. The client
 sends a request and the server responds either direct on the same connection or
@@ -111,7 +111,7 @@ arguments to add to the HTTP request.
 ### The request pipeline methods info
 *InitAuthenticationMethod*
 
-Implemented in nodeOIDCCli/src/oiccli/src/service.js.initAuthenticationMethod(). Supports
+Implemented in nodeOIDCClient/src/oiccli/src/service.js.initAuthenticationMethod(). Supports
 6 different client authentication/authorization methods : 
 
 * #### BearerBody 
@@ -134,6 +134,7 @@ Adds the client secret information and and client id to the request.
 * #### PrivateKeyJWT
 Contains the functionality for choosing the algorithm for Private Key JWT and fetching the 
 signing key
+
 
 TODO : 
 Currently README only contains necessary information for the PRs. Will add more details to the README with each PR.
