@@ -6,7 +6,7 @@ after a while on another connection. The client here is a piece of software that
 implements O/O and works on behalf of an application.
 
 The client follows the same pattern disregarding which request/response it is
-dealing with. I does the following when sending a request:
+dealing with. It does the following when sending a request:
 
 1. Gathers the request arguments
 
