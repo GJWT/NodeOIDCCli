@@ -66,16 +66,16 @@ are called.
 The overall call sequence looks like this:
 
 ```
-    do_request_init
-      request_info
-        construct
-          do_pre_construct (#)
-          gather_request_args
-          do_post_construct (#)
-      init_authentication_method
-      uri_and_body
-        endpoint
-      update_http_args
+do_request_init
+  request_info
+    construct
+      do_pre_construct (#)
+      gather_request_args
+      do_post_construct (#)
+  init_authentication_method
+  uri_and_body
+    endpoint
+  update_http_args
 ```
   
 The result of the request pipeline is a dictionary that in its simplest form will
@@ -93,16 +93,16 @@ part of a HTTP GET operation.If instead a HTTP POST with a json body is expected
 outcome of do_request_init will be something like this :
 
 ``` 
-  {
-    'uri' : 'https://example.com/token',
-    'body': 'grant_type=authorization_code&redirect_uri=https%3A%2F%2Fexample.com%2Fcli%2Fauthz_cb&code=access_code&client_id=client_id',
-    'h_args' : {
-        'headers' : {
-            'Authorization' : 'Basic Y2xpZW50X2lkOnBhc3N3b3Jk',
-            'Content-Type' : 'application/x-www-form-url encoded',
-        }
-    }
+{
+  'uri' : 'https://example.com/token',
+  'body': 'grant_type=authorization_code&redirect_uri=https%3A%2F%2Fexample.com%2Fcli%2Fauthz_cb&code=access_code&client_id=client_id',
+  'h_args' : {
+      'headers' : {
+          'Authorization' : 'Basic Y2xpZW50X2lkOnBhc3N3b3Jk',
+          'Content-Type' : 'application/x-www-form-url encoded',
+      }
   }
+}
 ```
 
 Here you have the url that the request should go to, the body of the request and header 
