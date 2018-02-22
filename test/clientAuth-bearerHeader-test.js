@@ -82,7 +82,6 @@ describe('Test bearer header', () => {
     const resp1 = new AuthorizationResponse('auth_grant', 'AAAA');
     new client.service.Authorization().parseResponse(
         resp1, client.clientInfo, 'urlencoded');
-    // based on state find the code and then get an access token
     const resp2 = new AccessTokenResponse({
       access_token: 'token1',
       token_type: 'Bearer',

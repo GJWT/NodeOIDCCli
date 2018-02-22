@@ -1,7 +1,7 @@
 /**
  * @fileoverview One of the six different client authentication / authorization
- * methods supported by OICCli that adds the corresponding authentication
- * information to the request.
+ * methods supported by OICCli that adds the request access token
+ * information to the request header.
  */
 
 const ClientAuthnMethod = require('./clientAuth').ClientAuthnMethod;
