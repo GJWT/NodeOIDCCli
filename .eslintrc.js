@@ -7,4 +7,7 @@ module.exports = {
     mocha: true,
   },
   'extends': 'eslint:recommended',
+  rules: {
+    'no-shadow': 'error',
+  },
 }
