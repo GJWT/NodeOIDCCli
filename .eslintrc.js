@@ -6,7 +6,7 @@ module.exports = {
     node: true,
     mocha: true,
   },
-  'extends': 'eslint:recommended',
+  'extends': ['eslint:recommended', 'google'],
   rules: {
     'no-shadow': 'error',
   },
