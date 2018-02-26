@@ -17,7 +17,7 @@ Example usage from an RP without prior client
 Getting an `identifier` from the user, using webfinger to discover the OP
 issuer, getting openid-configuration and using that to register a new client.
 
-```
+```javascript
 const oidcclient = require('oidc-client');
 
 /**
