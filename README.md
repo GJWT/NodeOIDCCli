@@ -1,5 +1,5 @@
-OpenID Connect Relying Party
-============================
+OpenID Connect Services
+=======================
 
 [![Build Status](https://secure.travis-ci.org/GJWT/nodeOIDCClient?branch=master)](http://travis-ci.org/GJWT/nodeOIDCClient)
 
