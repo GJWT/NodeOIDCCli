@@ -1,26 +1,43 @@
+/**
+ * @fileoverview One of the six different client authentication / authorization
+ * methods supported by OICCli that adds the corresponding authentication
+ * information to the request. Clients that have received a client_secret value from the Authorization
+ * Server can create a signed JWT using an HMAC SHA algorithm, such as
+ * HMAC SHA-256.
+ * 
+ * The HMAC (Hash-based Message Authentication Code) is calculated using the
+ * bytes of the UTF-8 representation of the client_secret as the shared key.
+ */
+
 const JWSAuthnMethod = require('./jwsAuth').JWSAuthnMethod;
 
+/**
+ * ClientSecretJWT
+ * @class
+ * @constructor
+ * @extends JWSAuthnMethod
+ */
 class ClientSecretJWT extends JWSAuthnMethod {
   constructor() {
     super();
   }
 
   /**
-   * More complicated logic then I would have liked it to be
-   * @param {*} cis Request class instance
-   * @param {*} ci Client information
-   * @param {*} requestArgs Request arguments
-   * @param {*} httpArgs HTTP header arguments
-   * @param {*} kwargs
+   * @param {string} entity Class instance name
    */
-  chooseAlgorithm(entity, kwargs) {
+  chooseAlgorithm(entity, params) {
     entity = entity || 'clientSecretJwt';
-    return JWSAuthnMethod.chooseAlgorithm(entity, kwargs);
+    return JWSAuthnMethod.chooseAlgorithm(entity, params);
   }
 
-  getSigningKey(algorithm, cliInfo) {
+  /**
+   * Fetch key for signing
+   * @param {string} algorithm Type of algorithm
+   * @param {serviceContext} serviceContext Type of serviceContext
+   */
+  getSigningKey(algorithm, serviceContext) {
     alg = alg || algorithm;
-    return cliInfo.keyjar.getSigningKey(alg2keyType(algorithm), '', alg);
+    return serviceContext.keyjar.getSigningKey(alg2keyType(algorithm), '', alg);
   }
 }
 

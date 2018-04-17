@@ -1,5 +1,5 @@
-const Service = require('../../service');
-const Token = require('../../../oicMsg/src/models/tokenProfiles/token');
+const Service = require('../../service').Service;
+const Message = require('../../../nodeOIDCMsg/src/oicMsg/message');
 const Authorization = require('./authorization').Authorization;
 const AccessToken = require('./accessToken').AccessToken;
 const CheckId = require('./checkId').CheckID;
@@ -10,6 +10,7 @@ const ProviderInfoDiscovery =
 const RefreshAccessToken = require('./refreshAccessToken').RefreshAccessToken;
 const Registration = require('./registration').Registration;
 const UserInfo = require('./userInfo').UserInfo;
+const WebFinger = require('../../webFinger/webFinger').WebFinger;
 
 const PREFERENCE2PROVIDER = {
   'require_signed_request_object': 'request_object_algs_supported',
@@ -56,20 +57,19 @@ var services = {
   'RefreshAccessToken': RefreshAccessToken,
   'Registration': Registration,
   'Service': Service,
-  'UserInfo': UserInfo
+  'UserInfo': UserInfo,
+  'WebFinger': WebFinger,
 };
 
-function OicFactory(reqName, httpLib, keyJar, clientAuthnMethod) {
+function OicFactory(reqName, serviceContext, stateDb, clientAuthnMethod, serviceConfiguration){
   for (let i = 0; i < Object.keys(services).length; i++) {
     let key = Object.keys(services)[i];
     let val = services[key];
     if (key === reqName) {
-      if (val.prototype.init) {
-        val.prototype.init(httpLib, keyJar, clientAuthnMethod);
-      }
-      return val;
+      return new val(serviceContext, stateDb, clientAuthnMethod, serviceConfiguration);
     }
   }
 }
 
 module.exports.OicFactory = OicFactory;
+module.exports.PREFERENCE2PROVIDER = PREFERENCE2PROVIDER;

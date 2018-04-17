@@ -1,17 +1,19 @@
 const assert = require('chai').assert;
-const AccessTokenRequest =
-    require('../oicMsg/oauth2/init.js').AccessTokenRequest;
 const AccessTokenResponse =
-    require('../oicMsg/oauth2/init.js').AccessTokenResponse;
-const AuthorizationRequest =
-    require('../oicMsg/oauth2/init.js').AuthorizationRequest;
+    require('../nodeOIDCMsg/src/oicMsg/oauth2/responses').AccessTokenResponse;
 const AuthorizationResponse =
-    require('../oicMsg/oauth2/init.js').AuthorizationResponse;
+    require('../nodeOIDCMsg/src/oicMsg/oauth2/responses').AuthorizationResponse;
 const BearerBody = require('../src/clientAuth/bearerBody').BearerBody;
 const Client = require('../src/oauth2/init').Client;
 const CLIENT_AUTHN_METHOD =
     require('../src/clientAuth/clientAuth').CLIENT_AUTHN_METHOD;
-const ResourceRequest = require('../oicMsg/oauth2/init.js').ResourceRequest;
+const ResourceRequest = require('../nodeOIDCMsg/src/oicMsg/oauth2/requests').ResourceRequest;
+const State = require('../src/state').State;
+const buildServices = require('../src/service').buildServices;
+const DEFAULT_SERVICES = require('../src/oic/init').DEFAULT_SERVICES;
+const OicFactory = require('../src/oic/service/service').OicFactory;
+const ServiceContext = require('../src/serviceContext').ServiceContext;
+const AuthorizationRequest = require('../nodeOIDCMsg/src/oicMsg/oauth2/requests').AuthorizationRequest;
 
 const CLIENT_ID = 'A';
 
@@ -22,43 +24,61 @@ const CLIENT_CONF = {
   client_id: CLIENT_ID,
 };
 
-const REQ_ARGS = {
-  redirect_uri: 'https://example.com/rp/cb',
-  response_type: 'code',
-};
+class DB{
+  constructor(){
+    this.db = {};
+  }
 
-function getClient() {
-  const client = new Client();
-  client.init(CLIENT_AUTHN_METHOD, CLIENT_CONF);
-  const sdb = client.clientInfo.stateDb;
-  sdb.dict = {};
-  sdb.dict.ABCDE = {code: 'accessCode'};
-  client.clientInfo.clientSecret = 'boardingPass';
-  return client;
+  set(key, value){
+    this.db[key] = value;
+  }
+
+  get(item){
+    return this.db[item];
+  }
+}
+
+function getService(){
+  let serviceContext = new ServiceContext(null, CLIENT_CONF);
+  serviceContext.client_secret = 'boarding pass';
+  return serviceContext;
+}
+
+function getServiceContext(){
+  let serviceContext = new ServiceContext(null, CLIENT_CONF);
+  serviceContext.client_secret = 'boarding pass';
+  return serviceContext;
+}
+
+function getServices(){
+  let db = new DB();
+  let authRequest = new AuthorizationRequest().toJSON({redirect_uri: 'http://example.com', state: 'ABCDE'});
+  let authResponse = new AuthorizationResponse().toJSON({access_token: 'token', state: 'ABCDE'});
+  db.set('ABCDE', new State().toJSON({iss:'Issuer', auth_request:authRequest, auth_response:authResponse}));
+  return buildServices(DEFAULT_SERVICES, OicFactory, getServiceContext(), db, CLIENT_AUTHN_METHOD);
 }
 
 describe('Test bearer body', () => {
-  let client;
-  beforeEach(function() {
-    client = getClient();
-  });
+  let services = getServices();
+  let authSrv = services['authorization'];
+  let accessTokenSrv = services['accessToken'];
   
   it('test construct with request args', () => {
     const requestArgs = {access_token: 'Sesame'};
-    let cis = new ResourceRequest();
-    const list = new BearerBody().construct(cis, client.clientInfo, requestArgs);
+    let request = new ResourceRequest(requestArgs);
+    const list = new BearerBody().construct(request, accessTokenSrv); 
     const httpArgs = list[0];
-    cis = list[1];
-
-    assert.deepEqual(cis.access_token, 'Sesame');
+    request = list[1];
+    assert.deepEqual(request.access_token, 'Sesame');
     assert.deepEqual(httpArgs, undefined);
   });
 
   it('test construct with state', () => {
-    const sdb = client.clientInfo.stateDb;
-    sdb.FFFFF = {};
-    const resp = new AuthorizationResponse('code', 'FFFFF')
-    sdb.addResponse(resp);
+    const sdb = authSrv.stateDb;
+    authSrv.stateDb.set('FFFF', new State({iss:'Issuer'}).toJSON());
+    
+    const resp = new AuthorizationResponse({code:'code', state:'FFFFF'});
+    authSrv.storeItem(resp, 'auth_response', 'FFFFF');
     const atr = new AccessTokenResponse({
       access_token: '2YotnFZFEjr1zCsicMWpAA',
       token_type: 'example',
@@ -66,37 +86,40 @@ describe('Test bearer body', () => {
       example_parameter: 'example_value',
       scope: ['inner', 'outer'],
     });
-    sdb.addResponse(atr, {state:'FFFFF'});
-    let cis = new ResourceRequest();
+    authSrv.storeItem(atr, 'token_response', 'FFFFF');
+    let request = new ResourceRequest();
     const list = new BearerBody().construct(
-        cis, client.clientInfo, {}, null, {state:'FFFFF'}, 'inner');
+      request, authSrv, null, {state: 'FFFFF'});
     const httpArgs = list[0];
-    cis = list[1];
-    assert.deepEqual(cis.access_token, '2YotnFZFEjr1zCsicMWpAA');
+    request = list[1];
+    assert.deepEqual(request.access_token, '2YotnFZFEjr1zCsicMWpAA');
     assert.deepEqual(httpArgs, null);
   });
 
   it('test construct with request', () => {
-    const sdb = client.clientInfo.stateDb;
-    sdb.EEEE = {};
-    const resp = new AuthorizationResponse('auth_grant', 'EEEE');
-    new client.service.Authorization().parseResponse(
-        resp, client.clientInfo, 'urlencoded');
-
+    authSrv.stateDb.set('EEEE', new State({iss:'Issuer'}).toJSON());
+    let resp1 = new AuthorizationResponse();
+    let response = authSrv.parseResponse(resp1.toUrlEncoded({code:'auth_grant', state:'EEEE'}), 'urlencoded');
+    authSrv.updateServiceContext(response, 'EEEE');
     const resp2 = new AccessTokenResponse({
       access_token: 'token1',
       token_type: 'Bearer',
       expires_in: 0,
       state: 'EEEE',
     });
-    new client.service.AccessToken().parseResponse(
-        resp2, client.clientInfo, 'urlencoded');
-    let cis = new ResourceRequest();
+    let response2 = accessTokenSrv.parseResponse(
+      resp2.toUrlEncoded({
+        access_token: 'token1',
+        token_type: 'Bearer',
+        expires_in: 0,
+        state: 'EEEE',
+      }), 'urlencoded');
+    authSrv.updateServiceContext(response2, 'EEEE');
+    let request = new ResourceRequest();
     const list = new BearerBody().construct(
-        cis, client.clientInfo, null, null, {state:'EEEE'});
-    const httpArgs = list[0];
-    cis = list[1];
-    assert.isTrue(Object.keys(cis).indexOf('access_token') !== -1);
-    assert.deepEqual(cis.access_token, 'token1');
+      request, authSrv, null, {state: 'EEEE'});
+    request = list[1];
+    assert.isTrue(Object.keys(request).indexOf('access_token') !== -1);
+    assert.deepEqual(request.access_token, 'token1');
   });
 });

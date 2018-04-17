@@ -1,26 +1,46 @@
-const Service = require('../../service');
-const Token = require('../../../oicMsg/src/models/tokenProfiles/token');
+const Service = require('../../service').Service;
+const Message = require('../../../nodeOIDCMsg/src/oicMsg/message');
+const OpenIDSchema = require('../../../nodeOIDCMsg/src/oicMsg/oic/init').OpenIDSchema;
+const OIDCResponses = require('../../../nodeOIDCMsg/src/oicMsg/oic/responses');
 
+function getStateParameter(requestArgs, params){
+  let _state;
+  if (params && params['state']){
+    _state = params['state'];
+  }else if (requestArgs['state']){
+    _state = requestArgs['state'];
+  }else{
+    //throw new JSError('state', 'MissingParameter');
+  }
+  return _state;
+}
+
+function carryState(requestArgs, params){
+  let list = [requestArgs, {state: getStateParameter(requestArgs, params)}];
+  return list;
+}
+
+/**
+ * UserInfo
+ * @class
+ * @constructor
+ */
 class UserInfo extends Service {
-  constructor() {
-    super();
-    this.msgType = Token;
+  constructor(serviceContext, stateDb, clientAuthnMethod, conf) {
+    super(serviceContext, stateDb, clientAuthnMethod, conf);
+    this.msgType = Message;
+    this.responseCls = OpenIDSchema;
+    this.errorMsg = OIDCResponses.ResponseMessage;
     this.endpointName = 'userinfo_endpoint';
     this.synchronous = true;
     this.request = 'userinfo';
     this.defaultAuthnMethod = 'bearer_header';
     this.httpMethod = 'GET';
-    this.defaultAuthnMethod = 'bearer_header';
-    this.preConstruct = [this.oicPreConstruct];
+    this.preConstruct = [this.oicPreConstruct, carryState];
+    this.endpoint = 'https://example.org/op/userInfo';
   }
 
-  init(httpLib, keyJar, clientAuthnMethod) {
-    super.init(httpLib, keyJar, clientAuthnMethod);
-    this.preConstruct = [this.oicPreConstruct];
-    this.postParseResponse = [this.oicPostParseResponse];
-  }
-
-  oicPreConstruct(cliInfo, requestArgs, kwargs) {
+  oicPreConstruct(requestArgs, service, params) {
     if (requestArgs === null) {
       requestArgs = {};
     }
@@ -28,108 +48,47 @@ class UserInfo extends Service {
     if (Object.keys(requestArgs).indexOf('accessToken') !== -1) {
       return;
     } else {
-      let tInfo = cliInfo.stateDb.getTokenInfo(kwargs);
-      requestArgs['access_token'] = tInfo['access_token'];
+      requestArgs = service.multipleExtendRequestArgs(requestArgs, params['state'], ['access_token'], ['auth_response', 'token_response', 'refresh_token_response']);
     }
     let list = [requestArgs, {}];
     return list;
   }
 
-  oicPostParseResponse(resp, cliInfo, kwargs) {
-    resp = this.unpackAggregatedClaims(resp, clientInfo);
-    return this.fetchDistributedClaims(resp, clientInfo);
-  }
-
-  unpackAggregatedClaims(userInfo, cliInfo) {
-    let csrc = null;
-    try {
-      csrc = userInfo['claimsSources'];
-    } catch (err) {
-      console.log(err);
-    }
-    for (let i = 0; i < csrc.items().length; i++) {
-      let pair = csrc.items()[i];
-      let csrc = pair[0];
-      let spec = pair[1];
-      if (spec.indexOf('JWT')) {
-        let aggregatedClaims =
-            Message().fromJwt(spec['JWT'].encode('utf-8'), cliInfo.keyJar);
-        for (let i = 0; i < userInfo['claimNames'].items(); i++) {
-          userInfo[key] = aggregatedClaims[key];
-        }
+  postParseResponse(response, params){
+    _args = this.multipleExtendRequestArgs({}, params['state'], ['verified_id_token'], ['auth_response', 'token_response', 'refresh_token_response']);
+    try{
+      _sub = _args['verified_id_token']['sub'];
+      if (response['sub'] !== _sub){
+        //throw new JSError('Incorrect sub value', 'ValueError');
       }
+    }catch(err){
+      //throw new JSError('Can not verify value on sub', 'KeyError');
     }
-    return userInfo;
-  }
 
-  fetchDistributedClaims(userInfo, cliInfo, callBack) {
-    callBack = callBack || null;
-    try {
-      csrc = userInfo['claimSources'];
-    } catch (err) {
-      console.log(err);
-    }
-    let uInfo = null;
-    for (let i = 0; i < csrc.items().length; i++) {
-      if (spec.indexOf('endpoint') !== -1) {
-        if (spec.indexOf('accessToken')) {
-          let uInfo = this.serviceRequest(
-              spec['endpoint'], 'GET', spec['accessToken'], cliInfo);
-        } else {
-          if (callback) {
-            uInfo = this.serviceRequest(
-                spec['endpoint'], 'GET', callback(spec['endpoint']), cliInfo);
-          } else {
-            uInfo = this.serviceRequest(spec['endpoint'], 'GET', cliInfo);
+    _csrc = response['_claim_sources'];
+    for (var i = 0; i < Object.keys(_csrc).length; i++){
+      let _csrcKey = Object.keys(_csrc)[i];
+      let spec = _csrc[_csrcKey];
+      if (Object.keys(spec).indexOf('JWT')){
+        let values = [];
+        let aggregatedClaims = new Message().fromJWT(spec['JWT'].encode('utf-8'), this.serviceContext.keyJar);
+        for (var i = 0; i < Object.keys(response['_claim_names']).length; i++){
+          let value = Object.keys(response['_claim_names'])[i];
+          let src = response['_claim_names'][value];
+          if (src === csrc){
+            values.push(value);
           }
         }
 
-        let claims = [];
-        for (let i = 0; i < userInfo['claimNames'].items().length; i++) {
-          let pair = userInfo['claimNames'].items()[i];
-          let value = pair[0];
-          let src = pair[1];
-          if (src === csrc) {
-            claims.push(value);
-          }
-        }
-
-        if (set(claims) !== set(uinfo.keys())) {
-          console.log(
-              'Claims from claim source doesn\'t match what\'s in the user info');
-        }
-
-        for (let i = 0; i < uinfo.items(); i++) {
-          let pair = uinfo.items()[i];
-          let key = pair[0];
-          let val = pair[1];
-          userInfo[key] = vals;
+        for (var i = 0; i < Object.keys(claims).length; i++){
+          let key = Object.keys(claims)[i];
+          response[key] = aggregatedClaims[key];
         }
       }
     }
-    return userInfo;
-  }
 
-  setIdToken(cliInfo, requestArgs, kwargs) {
-    if (requestArgs === null) {
-      requestArgs = {};
-    }
-    try {
-      let prop = kwargs['prop'];
-    } catch (err) {
-      prop = 'idToken';
-    }
-    if (requestArgs.indexOf(prop) !== -1) {
-      return;
-    } else {
-      let state = this.getState(requestArgs, kwargs);
-      let idToken = cliInfo.stateDb.getIdToken(state);
-      if (idToken == null) {
-        console.log('No valid id token available');
-      }
-      requestArgs[prop] = idToken;
-    }
-    return requestArgs;
+    this.storeItem(response, 'user_info', params['state']);
+    return response;
   }
 }
 

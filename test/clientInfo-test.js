@@ -1,6 +1,80 @@
 const assert = require('chai').assert;
-const ClientInfo = require('../src/clientInfo.js');
+const ServiceContext = require('../src/serviceContext.js').ServiceContext;
 const urlParse = require('url-parse');
+
+const ATTRMAP = {
+  'userinfo': {
+    'sign': 'userinfo_signed_response_alg',
+    'alg': 'userinfo_encrypted_response_alg',
+    'enc': 'userinfo_encrypted_response_enc'
+  },
+  'id_token': {
+    'sign': 'id_token_signed_response_alg',
+    'alg': 'id_token_encrypted_response_alg',
+    'enc': 'id_token_encrypted_response_enc'
+  },
+  'request': {
+    'sign': 'request_object_signing_alg',
+    'alg': 'request_object_encryption_alg',
+    'enc': 'request_object_encryption_enc'
+  }
+};
+
+const DEFAULT_SIGN_ALG = {
+  'userinfo': 'RS256',
+  'request': 'RS384',
+  'id_token': 'ES384',
+};
+
+/**
+ * Reformat the crypto algorithm information gathered from a 
+ * client registration response into something more palatable.
+ * 
+ * @param {string} typ: 'id_token', 'userinfo' or 'request_object'
+ */
+function signEncAlgs(serviceContext, typ) {
+  let resp = {};
+  for (let i = 0; i < Object.keys(ATTRMAP[typ]).length; i++) {
+      let key = Object.keys(ATTRMAP[typ])[i];
+      let val = ATTRMAP[typ][key];
+      if (serviceContext.registrationResponse && serviceContext.registrationResponse[val]){
+      resp[key] = serviceContext.registrationResponse[val];
+      }else if (key === 'sign') {
+      try {
+          resp[key] = DEFAULT_SIGN_ALG[typ];
+      } catch (err) {
+          return;
+      }
+      }
+  }
+  return resp;
+}
+
+/**
+ * Verifies that the algorithm to be used are supported by the other side.
+ * This will look at provider information either statically configured or 
+ * obtained through dynamic provider info discovery.
+ * 
+ * @param {string} alg The algorithm specification
+ * @param {string} usage In which context the 'alg' will be used.
+ * The following contexts are supported:
+ *        - userinfo
+ *        - id_token
+ *        - request_object
+ *        - token_endpoint_auth
+ * @param {string} typ Type of alg
+ *        - signing_alg 
+ *        - encryption_alg
+ *        - encryption_enc
+ */
+function verifyAlgSupport(serviceContext, alg, usage, typ) {
+  let supported = serviceContext.providerInfo[usage + '_' + typ + '_values_supported'];
+  if (supported.indexOf(alg) !== -1) {
+    return true;
+  } else {
+    return false;
+  }
+}
 
 describe('', function() {
   let config = {
@@ -11,10 +85,9 @@ describe('', function() {
     'requests_dir': 'requests'
   };
 
-  let ci = new ClientInfo();
-  ci.init(null, config);
+  let ci = new ServiceContext(null, config);
 
-  it('create ClientInfo instance', function() {
+  it('create serviceContext instance', function() {
     assert.isNotNull(ci);
   });
 
@@ -30,10 +103,10 @@ describe('', function() {
     'userinfo_encrypted_response_enc': 'A128CBC-HS256',
   };
 
-  let res = ci.signEncAlgs('userinfo');
+  let res = signEncAlgs(ci, 'userinfo');
   it('registration userInfo signEncAlgs', function() {
     assert.deepEqual(
-        res, {'sign': 'RS256', 'alg': 'RSA1_5', 'enc': 'A128CBC-HS256'});
+    res, {'sign': 'RS256', 'alg': 'RSA1_5', 'enc': 'A128CBC-HS256'});
   });
 
   ci.registrationResponse = {
@@ -49,13 +122,13 @@ describe('', function() {
     'request_object_signing_alg': 'RS384'
   };
 
-  res = ci.signEncAlgs('userinfo');
+  res = signEncAlgs(ci, 'userinfo');
   it('registration request object signEncAlgs typ userinfo', function() {
     assert.deepEqual(
-        res, {'sign': 'RS256', 'alg': 'RSA1_5', 'enc': 'A128CBC-HS256'});
+      res, {'sign': 'RS256', 'alg': 'RSA1_5', 'enc': 'A128CBC-HS256'});
   });
 
-  let res2 = ci.signEncAlgs('request');
+  let res2 = signEncAlgs(ci, 'request');
   it('registration request object signEncAlgs typ request', function() {
     assert.deepEqual(res2, {'sign': 'RS384'});
   });
@@ -76,21 +149,21 @@ describe('', function() {
     'id_token_signed_response_alg': 'ES384',
   };
 
-  let res3 = ci.signEncAlgs('userinfo');
+  let res3 = signEncAlgs(ci, 'userinfo');
   it('registration request object signEncAlgs typ userinfo', function() {
     assert.deepEqual(
-        res3, {'sign': 'RS256', 'alg': 'RSA1_5', 'enc': 'A128CBC-HS256'});
+      res3, {'sign': 'RS256', 'alg': 'RSA1_5', 'enc': 'A128CBC-HS256'});
   });
 
-  let res4 = ci.signEncAlgs('request');
+  let res4 = signEncAlgs(ci, 'request');
   it('registration request object signEncAlgs typ request', function() {
     assert.deepEqual(res4, {'sign': 'RS384'});
   });
 
-  let res5 = ci.signEncAlgs('id_token');
+  let res5 = signEncAlgs(ci, 'id_token');
   it('registration request object signEncAlgs typ id_token', function() {
     assert.deepEqual(
-        res5, {'sign': 'ES384', 'alg': 'ECDH-ES', 'enc': 'A128GCM'});
+      res5, {'sign': 'ES384', 'alg': 'ECDH-ES', 'enc': 'A128GCM'});
   });
 
   ci.providerInfo = {
@@ -131,24 +204,24 @@ describe('', function() {
     'service_documentation':
         'http://server.example.com/connect/service_documentation.html',
     'ui_locales_supported': ['en-US', 'en-GB', 'en-CA', 'fr-FR', 'fr-CA']
-  }
+  };
 
-  let res6 = ci.verifyAlgSupport('RS256', 'id_token', 'signing_alg');
+  let res6 = verifyAlgSupport(ci, 'RS256', 'id_token', 'signing_alg');
   it('verify_alg_support', function() {
     assert.isTrue(res6);
   });
 
-  let res7 = ci.verifyAlgSupport('RS512', 'id_token', 'signing_alg')
+  let res7 = verifyAlgSupport(ci, 'RS512', 'id_token', 'signing_alg');
   it('verify_alg_support', function() {
     assert.isFalse(res7);
   });
 
-  let res8 = ci.verifyAlgSupport('RSA1_5', 'userinfo', 'encryption_alg');
+  let res8 = verifyAlgSupport(ci, 'RSA1_5', 'userinfo', 'encryption_alg');
   it('verify_alg_support', function() {
     assert.isTrue(res8);
   });
 
-  let res9 = ci.verifyAlgSupport('ES256', 'token_endpoint_auth', 'signing_alg');
+  let res9 = verifyAlgSupport(ci, 'ES256', 'token_endpoint_auth', 'signing_alg');
   it('verify_alg_support', function() {
     assert.isTrue(res9);
   });
@@ -189,8 +262,7 @@ describe('client info tests', function() {
       'requests_dir': 'requests'
     };
 
-    ci = new ClientInfo();
-    ci.init(null, config);
+    ci = new ServiceContext(null, config);
   });
 
   it('client info init', function() {
@@ -215,8 +287,7 @@ describe('client info tests', function() {
 describe('set and get client secret', function() {
   let ci;
   beforeEach(function() {
-    ci = new ClientInfo();
-    ci.init();
+    ci = new ServiceContext();
     ci.clientSecret = 'supersecret';
   });
 
@@ -228,18 +299,12 @@ describe('set and get client secret', function() {
 describe('set and get client id', function() {
   let ci;
   beforeEach(function() {
-    ci = new ClientInfo();
-    ci.init();
+    ci = new ServiceContext();
     ci.clientId = 'myself';
-    ci.stateDb.clientId = 'myself';
   });
 
   it('client info init clientId', function() {
     assert.deepEqual(ci.clientId, 'myself');
-  });
-
-  it('client info init stateDb clientId', function() {
-    assert.deepEqual(ci.stateDb.clientId, 'myself');
   });
 });
 
@@ -255,8 +320,7 @@ describe('client filename', function() {
       'base_url': 'https://example.com',
       'requests_dir': 'requests'
     };
-    ci = new ClientInfo();
-    ci.init(null, config);
+    ci = new ServiceContext(null, config);
     fname = ci.filenameFromWebName('https://example.com/rq12345');
   });
   it('client filename', function() {

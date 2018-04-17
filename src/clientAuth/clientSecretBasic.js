@@ -1,3 +1,5 @@
+var base64url = require('base64url');
+
 /**
  * @fileoverview One of the six different client authentication / authorization
  * methods supported by OICCli that adds confidential client authentication
@@ -6,54 +8,65 @@
 
 const ClientAuthnMethod = require('./clientAuth').ClientAuthnMethod;
 
+/**
+ * Clients that have received a client_secret value from the Authorization
+ * Server, may authenticate with the Authorization Server in accordance with
+ * Section 3.2.1 of OAuth 2.0 [RFC6749] using HTTP Basic authentication scheme.
+ * 
+ * The upshot of this is to construct an Authorization header that has the
+ * value 'Basic <token>' where <token> is username and password concatenated
+ * together with a ':' in between and then URL safe base64 encoded.
+ * 
+ * @class
+ * @constructor
+ * @extends ClientAuthnMethod
+ */
 class ClientSecretBasic extends ClientAuthnMethod {
   constructor() {
     super();
   }
 
   /**
-   * @param {?ResourceRequest} cis Request class instance
-   * @param {?ClientInfo} cliInfo Client information
+   * @param {?ResourceRequest} request Request class instance
+   * @param {?serviceContext} serviceContext Client information
    * @param {?Object<string, string>} requestArgs Request arguments
    * @param {?Object<string, string>} httpArgs HTTP header arguments
-   * @param {?Object<string, string>} kwargs Other extra arguments
    * @return {!Object<string, string>} HTTP header arguments
    */
-  construct(cis, cliInfo = null, requestArgs = null, httpArgs = {}, kwargs) {
+  construct(request, service = null, httpArgs = {}, params) {
     httpArgs = httpArgs || {};
-
+    httpArgs.headers = httpArgs.headers || {};
+  
     let passwd = null;
-    if (kwargs && kwargs.password) {
-      passwd = kwargs.password;
+    if (params && params.password) {
+      passwd = params.password;
     } else {
-      if (httpArgs.password) {
-        passwd = httpArgs.password;
-      } else {
-        passwd = cis && cis.client_secret ? cis.client_secret :
-                                            cliInfo.client_secret;
-      }
+      passwd = request && request.claims['client_secret'] ? request.claims['client_secret'] :
+      service.serviceContext.clientId;
     }
 
-    const user = kwargs && kwargs.user ? kwargs.user : cliInfo.client_id;
+    const user = params && params.user ? params.user : service.serviceContext.client_id;
+    
     const credentials = {};
     credentials[user] = passwd;
     httpArgs.headers = httpArgs.headers || {};
-    httpArgs.headers['Authorization'] = credentials;
-    if (cis && cis.client_secret) {
-      delete cis.client_secret;
+    httpArgs.headers['Authorization'] = credentials
+    
+    if (request.claims && request.claims['client_secret'] ) {
+      delete request.claims['client_secret'] ;
     }
-    if (cis && cis.grant_type === 'authorization_code') {
-      if (!cis.client_id) {
-        if (cliInfo.client_id) {
-          cis.client_id = cliInfo.client_id;
+    if (request.claims && request.claims['grant_type'] === 'authorization_code') {
+      if (!request.claims['client_id']) {
+        if (serviceContext.client_id) {
+          request.client_id = serviceContext.client_id;
         } else {
           return;
         }
       }
     } else {
-      const req = cis && cis.client_id ? cis.client_id : false
-      if (!req && cis && cis.client_id) {
-        delete cis.client_id;
+      const req = request.claims && request.claims['client_id'] ? request.claims['client_id'] : false
+      if (!req && request.claims && request.claims['client_id']) {
+        delete request.claims['client_id'];
       }
     }
     return httpArgs;

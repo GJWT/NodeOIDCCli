@@ -1,18 +1,28 @@
+/**
+ * @fileoverview Adds authentication information to a request and validates
+ * client info.
+ */
+
 const OICCli = require('../init.js').OICCli;
 const utf8 = require('utf8');
 const base64url = require('base64url');
 
+/**
+ * ClientAuthnMethod
+ * Basic Client Authentication Method class.
+ * @class 
+ * @constructor
+ */
 class ClientAuthnMethod {
   constructor() {}
 
-  /** Add authentication information to a request */
-  construct(kwargs) {
+  construct(params) {
     throw new Error('Unsupported Operation Exception');
   }
 }
 
-function validClientInfo(cInfo, when) {
-  let eta = cInfo['client_secret_expires_at'] || 0;
+function validServiceContext(serviceContext, when) {
+  let eta = serviceContext['client_secret_expires_at'] || 0;
   let now = when || Date.now();
   if (eta !== 0 && eta < now) {
     return false;
@@ -21,4 +31,4 @@ function validClientInfo(cInfo, when) {
 }
 
 module.exports.ClientAuthnMethod = ClientAuthnMethod;
-module.exports.validClientInfo = validClientInfo;
+module.exports.validServiceContext = validServiceContext;

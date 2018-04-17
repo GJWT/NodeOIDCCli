@@ -1,6 +1,10 @@
 const crypto = require('crypto');
 crypto.createHmac('sha256', '');
-
+/**
+ * OICCli
+ * @class
+ * @constructor
+ */
 class OICCli {
   constructor() {
     this.OIDCONF_PATTERN = '%s/.well-known/openid-configuration';
@@ -30,7 +34,7 @@ class OICCli {
 
   /**
    * Returns a string of random ascii characters or digits
-   * @param size The length of the string
+   * @param {int} size The length of the string
    */
   rndStr(size) {
     return Math.random().toString(36).substring(size);
@@ -39,7 +43,7 @@ class OICCli {
   /**
    * Returns a string of random ascii characters, digits and unreserved
    * characters
-   * @param {*} size The length of the string
+   * @param {int} size The length of the string
    */
   unreserved() {};
 

@@ -1,12 +1,19 @@
 const SINGLE_OPTIONAL_STRING =
-    require('../../oicMsg/oauth2/init').SINGLE_OPTIONAL_STRING;
+    require('../../nodeOIDCMsg/src/oicMsg/oauth2/init').SINGLE_OPTIONAL_STRING;
 const SINGLE_OPTIONAL_DICT =
-    require('../../oicMsg/oauth2/init').SINGLE_OPTIONAL_DICT;
+    require('../../nodeOIDCMsg/src/oicMsg/oauth2/init').SINGLE_OPTIONAL_DICT;
 const OPTIONAL_LIST_OF_STRINGS =
-    require('../../oicMsg/oauth2/init').OPTIONAL_LIST_OF_STRINGS;
-const Token = require('../../oicMsg/src/models/tokenProfiles/token');
+    require('../../nodeOIDCMsg/src/oicMsg/oauth2/init').OPTIONAL_LIST_OF_STRINGS;
+const Message = require('../../nodeOIDCMsg/src/oicMsg/message');
 
-class LINK extends Token {
+/**
+ * LINK
+ * @class
+ * @constructor
+ * @extends Message
+ * https://tools.ietf.org/html/rfc5988
+ */
+class LINK extends Message {
   constructor(dict) {
     super();
     this.cParam = {
@@ -70,7 +77,14 @@ function msgSer(inst, sformat, lev = 0) {
   return res;
 }
 
-class JRD extends Token {
+/**
+ * JRD
+ * @class
+ * @constructor
+ * @extends Message
+ * JSON Resource Descriptor https://tools.ietf.org/html/rfc7033#section-4.4
+ */
+class JRD extends Message {
   constructor(dict) {
     super();
     this.claim = {

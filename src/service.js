@@ -1,9 +1,16 @@
-const Token = require('../oicMsg/src/models/tokenProfiles/token');
-const ErrorResponse = require('../oicMsg/oauth2/init').ErrorResponse;
+const Message = require('../nodeOIDCMsg/src/oicMsg/message');
+const ErrorResponse = require('../nodeOIDCMsg/src/oicMsg/oauth2/responses').ErrorResponse;
 const HttpLib = require('./http');
 const AuthorizationResponse =
-    require('../oicMsg/oauth2/init.js').AuthorizationResponse;
+    require('../nodeOIDCMsg/src/oicMsg/oauth2/init.js').AuthorizationResponse;
 const util = require('./util').Util;
+const urlParse = require('url-parse');
+const Util = require('./util').Util;
+const StateInterface = require('./state').StateInterface;
+const URINormalizer = require('./webFinger/uriNormalizer').URINormalizer;
+const URL_ENCODED = require('./util').URL_ENCODED;
+const JSON_ENCODED = require('./util').JSON_ENCODED;
+const getHttpBody = require('./util').getHttpBody;
 
 /**
  * @fileoverview Method call structure for Services
@@ -33,56 +40,126 @@ let SUCCESSFUL = [200, 201, 202, 203, 204, 205, 206];
 let SPECIAL_ARGS = ['authn_endpoint', 'algs'];
 let REQUEST_INFO =
     'Doing request with: URL:{}, method:{}, data:{}, https_args:{}';
+let rt2gt = {
+  'code': ['authorization_code'],
+  'id_token': ['implicit'],
+  'id_token token': ['implicit'],
+  'code id_token': ['authorization_code', 'implicit'],
+  'code token': ['authorization_code', 'implicit'],
+  'code id_token token': ['authorization_code', 'implicit']
+};
 
-class Service {
-  constructor() {
-    this.msgType = Token;
-    this.responseCls = Token;
+/**
+ * Service
+ * @class
+ * @constructor
+ */
+class Service extends StateInterface{
+  constructor(serviceContext, stateDb, clientAuthnMethod, conf) {
+    super(stateDb);
+    if (stateDb){
+      this.stateDb = stateDb;
+    }
+    /** 
+     * The message subclass that describes the request. Default is Message 
+     * @type {Message} 
+     */ 
+    this.msgType = Message;
+
+    /** 
+     * The message subclass that describes the response. Default is Message 
+     * @type {Message}
+     */
+    this.responseCls = Message;
+
+    /** The message subclass that describes an error response. Default is oauth2 ErrorResponse
+     * @type {ErrorResponse}
+     */
     this.errorMsg = ErrorResponse;
+
+    /** The name of the endpoint on the server that the request should be sent to. No default 
+     * @type {string}
+     */
     this.endpointName = '';
+
+    /** 
+     * True if the response will be returned as a direct response to the request. The only exception 
+     * right now to this is the Authorization request where the response is delivered to the client 
+     * at some later date. Default is True 
+     * @type {bool}
+     */
     this.synchronous = true;
+
+    /** 
+     * A name of the service. Later when a RP/client is implemented instances of different services are found by using this name. No default 
+     * @type {string}
+     */
     this.request = '';
+
+    /** 
+     * The client authentication method to use if nothing else is specified. Default is ‘’ which means none. 
+     * @type {string}
+     */
     this.defaultAuthMethod = '';
+
+    /** Which HTTP method to use when sending the request. Default is GET 
+     * @type {string}
+     */
     this.httpMethod = 'GET';
+
+    /** The serialization method to be used for the request Default is urlencoded 
+     * @type {string}
+     */
     this.bodyType = 'urlEncoded';
+
+    /** The deserialization method to use on the response Default is json 
+     * @type {string}
+     */
     this.responseBodyType = 'json';
 
+    this.serviceContext = serviceContext;
+    this.clientAuthMethod = clientAuthnMethod;
     this.events = null;
     this.endpoint = '';
     this.defaultRequestArgs = {};
+    if (conf){
+      this.conf = conf;
+      let params = ['msg_type', 'response_cls', 'error_msg',
+      'default_authn_method', 'http_method', 'body_type',
+      'response_body_type'];
+      for (var i = 0; i < params; i++){
+        let param = list[i];
+        this[param] = conf[param];
+      }
+    } else {
+      this.conf = {};
+    }
 
     // pull in all the modifiers
     this.preConstruct = [];
     this.postConstruct = [];
-    this.postParseResponse = [];
-  }
-
-  init(httpLib, keyJar, clientAuthMethod, kwargs) {
-    this.httpLib = httpLib || null;
-    this.keyJar = keyJar || null;
-    this.clientAuthMethod = clientAuthMethod || null;
-  }
+}
 
   /**
    * Go through the attributes that the message class can contain and
    * add values if they are missing and exists in the client info or
    * when there are default values.
    *
-   * @param {*} cliInfo Client info
-   * @param {*} kwargs Initial set of attributes.
+   * @param {serviceContext} serviceContext Client info
+   * @return Object<string, Object> 
    */
 
-  parseArgs(cliInfo, kwargs) {
-    let arArgs = kwargs;
+  parseArgs(serviceContext, params) {
+    let arArgs = params;
     let self = this;
-    for (let i = 0; i < Object.keys(this.msgType.prototype.cParam).length;
+    for (let i = 0; i < Object.keys(this.msgType.cParam).length;
          i++) {
-      let prop = Object.keys(this.msgType.prototype.cParam)[i];
+      let prop = Object.keys(this.msgType.cParam)[i];
       if (Object.keys(arArgs).indexOf(prop) !== -1) {
         continue;
       } else {
-        if (cliInfo[prop]) {
-          arArgs[prop] = cliInfo[prop];
+        if (serviceContext[prop]) {
+          arArgs[prop] = serviceContext[prop];
         } else if (this.defaultRequestArgs[prop]) {
           arArgs[prop] = this.defaultRequestArgs[prop];
         }
@@ -92,49 +169,133 @@ class Service {
   }
 
   /**
-   *  Will run the pre_construct methods one at the time in order.
-   *  @param {*} cliInfo Client Information as a :py:class:`oiccli.Client`
-   *          instance.
-   *  @param {*} requestArgs Request arguments
-   *  @param {*} kwargs Extra key word arguments
+   * Will run the pre_construct methods one at the time in order. Updates 
+   * the arguments in the method call with preconfigure argument from the 
+   * client configuration. Then it will run the list of pre_construct methods
+   * one by one in the order they appear in the list.
+   * 
+   * The call API that all the pre_construct methods must adhere to is:
+   *    meth(cli_info, request_args, **_args)
+   * 
+   * 
+   * @param {serviceContext} serviceContext Client Information as a Client instance.
+   * @param {Object<string, string>} requestArgs Request arguments
+   * @return Array consisting of request arguments and post arguments
    */
-  doPreConstruct(cliInfo, requestArgs, kwargs) {
+  doPreConstruct(requestArgs, params) {
+    let args = this.methodArgs('pre_construct', params);
     let postArgs = {};
     let pair = null;
     for (let i = 0; i < this.preConstruct.length; i++) {
       let meth = this.preConstruct[i];
-      pair = meth(cliInfo, requestArgs, kwargs);
+      pair = meth(requestArgs, this, args);
+    }
+    if (!pair){
+      pair = [requestArgs, postArgs];
     }
     return pair;
   }
 
   /**
-   * Will run the post_construct methods one at the time in order
-   * @param {*} cliInfo Client Information as a oiccli Client instance
-   * @param {*} requestArgs Request arguments
-   * @param kwargs Extra key word arguments
+   * Has a number of sources where it can get request arguments from. 
+   * In priority order:
+   * -  Arguments to the method call
+   * -  Information kept in the client information instance
+   * -  Information in the client configuration targeted for this method.
+   * -  Standard protocol defaults.
+   * 
+   * It will go through the list of possible (required/optional) attributes 
+   * as specified in the oicmsg.message.Message class that is defined to be 
+   * used for this request and add values to the attributes if any can be 
+   * found.
+   * 
+   * @param {serviceContext} serviceContext contains client information
+   * @return Object<string, Object> that contains request arguments such as
+   * redirectUri 
    */
-  doPostConstruct(cliInfo, requestArgs, postArgs) {
+  gatherRequestArgs(attrs, req) {
+    if (!req){
+      req = this;
+    }
+    let arArgs = attrs;
+    /*try{
+    req.msgType = new req.msgType();
+    }catch(err){
+      console.log(err);
+    }*/
+    for (var i = 0; i < Object.keys(req.msgType.cParam).length; i++){
+      let prop = Object.keys(req.msgType.cParam)[i];
+      if (Object.keys(attrs).indexOf(prop) !== -1){
+        continue;
+      }else{
+        if (req.serviceContext && req.serviceContext[prop] ){
+          arArgs[prop] = req.serviceContext[prop];
+        } else if (req.conf['request_args'] && req.conf['request_args'][prop]){
+          arArgs[prop] = req.conf['request_args'][prop];
+        } else if (req.defaultRequestArgs[prop]){
+          arArgs[prop] = req.defaultRequestArgs[prop];
+        }
+      }
+    }
+    return arArgs;
+  }
+
+  methodArgs(context, extra){
+    let args;
+    if (this.conf[context]){
+      args = this.conf[context];
+      args = Object.assign(args, extra);
+    } else {
+      args = extra;
+    }
+    return args;
+  }
+
+  /**
+   * Has a number of sources where it can get request arguments from. In 
+   * priority order:
+   * -  Arguments to the method call
+   * -  Information kept in the client information instance
+   * -  Information in the client configuration targeted for this method.
+   * -  Standard protocol defaults.
+   * 
+   * It will go through the list of possible (required/optional) attributes 
+   * as specified in the oicmsg.message.Message class that is defined to be 
+   * used for this request and add values to the attributes if any can be 
+   * found.
+   * 
+   * @param {serviceContext} serviceContext Client Information as a oiccli Client instance
+   * @param {Object<string, string>} requestArgs Request arguments
+   * @param {Object<string, string>} postArgs Arguments used by the 
+   * postConstruct method
+   * @return Possible modified set of request arguments.
+   */
+  doPostConstruct(requestArgs, params) {
+    let args = this.methodArgs('post_construct', params);
     let pair = null;
     for (let i = 0; i < this.postConstruct.length; i++) {
       let meth = this.postConstruct[i];
-      requestArgs = meth(cliInfo, requestArgs, postArgs);
+      requestArgs = meth(requestArgs, this, args);
     }
     return requestArgs;
   }
 
   /**
-   *  A method run after the response has been parsed and verified.
-   *  @param {*} resp The response as a Message instance
-   *  @param {*} cliInfo Client Information as a Client instance.
-   *  @param {*} state State value
-   *  @param {*} kwargs Extra key word arguments
+   * A method run after the response has been parsed and verified.
+   * Runs the list of post_parse_response methods in the order they appear 
+   * in the list.
+   * 
+   * @param {Message} resp The response as a Message instance
+   * @param {serviceContext} serviceContext Client Information as a Client instance.
+   * @param {State} state State value
    */
-  doPostParseResponse(resp, cliInfo, state, kwargs) {
+  doPostParseResponse(resp, serviceContext, state, params) {
     state = state || '';
-    for (let i = 0; i < this.postParseResponse.length; i++) {
-      let meth = this.postParseResponse[i];
-      meth(resp, cliInfo, state, kwargs);
+    if (this.postParseResponse){
+      for (let i = 0; i < this.postParseResponse.length; i++) {
+        let meth = this.postParseResponse[i];
+        meth(resp, serviceContext, state, params);
+      }
     }
   }
 
@@ -143,95 +304,170 @@ class Service {
   }
 
   /**
-   * Instantiate the request as a message class instance
-   * @param cliInfo Information about the client
-   * @param requestArgs
-   * @param kwargs Extra keyword arguments
-   */
-  construct(cliInfo, requestArgs, kwargs) {
+   * Instantiate the request as a message class instance with
+   * attribute values gathered in a preConstruct method or in the
+   * gatherRequestArgs method and possibly modified by a postConstruct method.
+   * 
+   * @param {serviceContext} serviceContext Information about the client
+   * @param {Object<string, string>}requestArgs Request arguments
+   * @return Message class instance 
+   */ 
+  construct(requestArgs, params) {
     if (requestArgs == null) {
       requestArgs = {};
     }
-    let pair = this.doPreConstruct(cliInfo, requestArgs, kwargs);
+    let pair = this.doPreConstruct(requestArgs, params);
     requestArgs = pair[0];
     let postArgs = pair[1];
-    if (this.msgType &&
-        Object.keys(this.msgType.prototype.cParam).indexOf('state')) {
-      if (kwargs && kwargs['state']) {
-        delete kwargs['state'];
+    try{
+      this.msgType = new this.msgType();
+    }catch(err){
+      console.log(err);
+    }
+    
+    if (this.msgType && this.msgType.cParam && 
+        Object.keys(this.msgType.cParam).indexOf('state') !== -1) {
+      if (params && params['state']) {
+        delete params['state'];
       }
     }
     let args = null;
-    try {
-      args = this.gatherRequestArgs(cliInfo, requestArgs);
-    } catch (err) {
-      args = this.parseArgs(cliInfo, requestArgs);
-    }
-    if (this.msgType.prototype.cDefault) {
-      args = Object.assign({}, this.msgType.prototype.cDefault, args);
-    }
-    return this.doPostConstruct(cliInfo, args, postArgs);
+
+    //try {
+    args = this.gatherRequestArgs(requestArgs);
+    /*} catch (err) {
+      args = this.parseArgs(serviceContext, requestArgs);
+    }*/
+    this.msgType.claims = Object.assign(args, this.msgType.claims);
+    //args = new this.msgType(args);
+    return this.doPostConstruct(this.msgType, postArgs);
   }
 
-  getEndpoint(kwargs) {
-    let uri = '';
-    uri = kwargs['endpoint'];
-    if (uri) {
-      delete kwargs['endpoint'];
+  /**
+   *  Find out which endpoint the request should be sent to
+   *  Picks the endpoint (URL) to which the request will be sent.
+   * @return The endpoint URI to which the request will be sent
+   */
+  getEndpoint(params) {
+    return this.endpoint;
+    
+    /*let uri = '';
+    if (params) {
+      uri = params['endpoint'];
+      if (uri){
+        delete params['endpoint'];
+      }
     }
     if (!uri) {
       try {
         uri = this.endpoint;
       } catch (err) {
         console.log('No endpoint specified');
+        throw new Error(err);        
       }
     }
-    return uri;
+    return uri;*/
   }
-
-  uriAndBody(cis, method, kwargs) {
+  
+  /**
+   * Based on the HTTP method place the protocol message in the right place.
+   * Depending on where the request are to be placed in the request (part of 
+   * the URL or as a POST body) and the serialization used the request in 
+   * it’s proper form will be constructed and tagged with destination.
+   * 
+   * uriAndBody will return a dictionary that a HTTP client library can use 
+   * to send the request.
+   * 
+   * @param {ResourceRequest} request The request as a Message class instance
+   * @param {string} method HTTP method
+   */
+  uriAndBody(request, method, params) {
     method = method || 'POST';
-
-    let uri = this.getEndpoint(kwargs);
-
-    let resp = util.prototype.getOrPost(uri, method, cis, null, null, kwargs);
-    resp['cis'] = cis;
-    try {
-      resp['httpArgs'] = {'headers': kwargs['headers']};
-    } catch (err) {
-      console.log('KeyError');
+    let resp = {}
+    let uri = this.getEndpoint(params);
+    if (params && params['headers']){
+      resp['hArgs'] = {'headers': params['headers']};
     }
+    resp = Object.assign(resp, util.prototype.getOrPost(uri, method, request, null, null, params));
+    resp['request'] = request;
     return resp;
   }
 
+  /**
+   *  Will run the proper client authentication method.
+   *  Each such method will place the necessary information in the necessary
+   *  place. A method may modify the request.
+   *  Supports 6 different client authentication/authorization methods
+   * -  bearerBody
+   * -  bearerHeader
+   * -  clientSecretBasic
+   * -  clientSecretJwt
+   * -  clientSecretPost
+   * -  privateKeyJwt
+   * depending on which of these, if any, is supposed to be used different 
+   * things has to happen. Thos things will happen when this method is called.
+   * 
+   * @param {ResourceRequest} request The request as a Message class instance
+   * @param {serviceContext} serviceContext serviceContext instance
+   * @param {string} authMethod Type of authentication method
+   * @param {Object<string, string>} requestArgs Request args
+   * @param {Object<string, string>} httpArgs HTTP header arguments
+   * @return Object<string, Object> containing Http arguments 
+   */
   initAuthenticationMethod(
-      cis, cliInfo, authMethod, requestArgs, httpArgs, kwargs) {
+      request, authMethod, httpArgs, params) {
     if (httpArgs == null) {
       httpArgs = {};
     }
-    if (requestArgs == null) {
-      requestArgs = {};
-    }
     if (authMethod) {
       return this.clientAuthMethod[authMethod].prototype.construct(
-          cis, cliInfo, requestArgs, httpArgs, kwargs);
+          request, this, httpArgs, params);
     } else {
       return httpArgs;
     }
   }
 
   /**
+   * @param {*} request 
+   * @param {*} authMethod 
+   * @param {*} httpArgs 
+   * @param {*} params 
+   */
+  getAuthHeader(request, authnMethod, params){
+    let headers = {};
+    // If I should deal with client authentication
+    if (authnMethod){
+      let hArg = this.initAuthenticationMethod(request, authnMethod, params);
+      if (hArg['headers']){
+        headers = hArg['headers'];
+      }
+    }
+    return headers;
+  }
+
+  /**
    * The method where everything is setup for sending the request.
    * The request information is gathered and the where and how of sending the
    * request is decided.
-   * @param {*} cliInfo Client information as a oicCli Client instance
-   * @param {*} method The HTTP method to be used
-   * @param {*} bodyType If the request is sent in the HTTP body this decides the encoding of the request
-   * @param {*} authnMethod The client authentication method
-   * @param {*} lax If it should be allowed to send a request that doesn't completely conform to the standard
-   * @param {*} kwargs Extra keyword arguments
+   * 
+   * - Remove request arguments that is know at this point should not appear in
+   *   the request
+   * - Construct the request
+   * - Do the client authentication setup if necessary
+   * - Set the necessary HTTP headers
+   * 
+   * @param {serviceContext} serviceContext Client information as a oicCli Client instance
+   * @param {string} method The HTTP method to be used
+   * @param {Object<string, string>} requestArgs Request Arguments
+   * @param {string} bodyType If the request is sent in the HTTP body this 
+   * decides the encoding of the request
+   * @param {string} authnMethod The client authentication method
+   * @param {bool} lax If it should be allowed to send a request that doesn't 
+   * completely conform to the standard
+   * @return A dictionary with the keys 'uri' and possibly 'body', 'params',
+   * 'request' and 'ht_args'
    */
-  requestInfo(cliInfo, method, requestArgs, bodyType, authMethod, lax, kwargs) {
+  requestInfo(serviceContext, method, requestArgs, bodyType, authMethod, lax, params) {
     if (!method) {
       method = this.httpMethod;
     }
@@ -240,64 +476,76 @@ class Service {
       requestArgs = {};
     }
 
+    var paramsArr = [];
+    if (params){
+      paramsArr = Object.keys(params);      
+    }
+
     let args = {};
-    for (let i = 0; i < Object.keys(kwargs).length; i++) {
-      let k = Object.keys(kwargs)[i];
-      let v = kwargs[k];
+    for (let i = 0; i < paramsArr.length; i++) {
+      let k = paramsArr[i];
+      let v = params[k];
       if (SPECIAL_ARGS.indexOf(v) == -1 && SPECIAL_ARGS.indexOf(k) == -1) {
         args[k] = v;
       }
     }
 
-    let cis = this.construct(cliInfo, requestArgs, args);
+    let request = this.construct(serviceContext, requestArgs, args);
 
     if (this.events) {
-      this.events.store('Protocol request', cis);
+      this.events.store('Protocol request', request);
     }
 
-    if (cis && lax) {
-      cis.lax = lax;
+    if (request && lax) {
+      request.lax = lax;
     }
 
     let hArg = null;
 
     if (authMethod) {
       hArg =
-          this.initAuthenticationMethod(cis, cliInfo, authMethod, null, kwargs);
+          this.initAuthenticationMethod(request, serviceContext, authMethod, null, params);
     }
 
     if (hArg) {
-      if (Object.keys(kwargs).indexOf('headers') !== -1) {
-        kwargs['headers'] += hArg['headers'];
+      if (params.headers) {
+        params['headers'] = Object.assign(hArg['headers'], params['headers']);
       } else {
-        kwargs['headers'] = hArg['headers'];
+        params['headers'] = hArg['headers'];
       }
     }
 
     if (bodyType == 'json') {
-      kwargs['contentType'] = JSON;
+      params['contentType'] = JSON;
     }
 
-    return this.uriAndBody(cis, method, kwargs);
+    return this.uriAndBody(request, method, params);
   }
 
   /**
    * Extending the header with information gathered during the request setup.
-   * @param {*} httpArgs Original HTTP header arguments
-   * @param {*} info Request info
+   * Will add the HTTP header arguments that has been added while the request
+   * has been travelling through the pipe line to a possible starting set.
+   * @param {Object<string, string>} httpArgs Original HTTP header arguments
+   * @param {Object} info Request info
    */
   updateHttpArgs(httpArgs, info) {
     let hArgs = null;
-    try {
-      hArgs = info['httpArgs'];
-    } catch (err) {
+    if (info['hArgs']){
+      hArgs = info['hArgs'];
+    } else {
       hArgs = {};
     }
 
     if (httpArgs == null) {
       httpArgs = hArgs;
     } else {
-      httpArgs = info['httpArgs'];
+      httpArgs = info['hArgs'];
+    }
+
+    if (info['params'] && info['params']['headers']){
+      const headers = info['params']['headers'];
+      httpArgs = {'headers': headers}
     }
 
     info['httpArgs'] = httpArgs;
@@ -305,16 +553,26 @@ class Service {
   }
 
   /**
-   * Builds the request message and constructs the HTTP headers.
-   * @param {*} cliInfo Client information
-   * @param {*} bodyType Which serialization to use for the HTTP body
-   * @param {*} method HTTP method used
-   * @param {*} requestArgs Message arguments
-   * @param {*} httpArgs Initial HTTP header arguments
-   * @param {*} kwargs Extra keyword arguments
+   *  Builds the request message and constructs the HTTP headers.
+   *  This is the starting pont for a pipeline that will:
+   *    - construct the request message
+   *    - add/remove information to/from the request message in the way a
+   *      specific client authentication method requires.
+   *    - gather a set of HTTP headers like Content-type and Authorization.
+   *    - serialize the request message into the necessary format (JSON, 
+   *      urlencoded, signed JWT)
+   * 
+   * @param {serviceContext} serviceContext Client information
+   * @param {string} bodyType Which serialization to use for the HTTP body
+   * @param {string} method HTTP method used
+   * @param {string} authMethod One of the six client authentication methods
+   * @param {Object<string, string>} requestArgs Message arguments
+   * @param {Object<string, object>} httpArgs Initial HTTP header arguments
+   * @return Object<string, Object> contains difference information such as 
+   * the uri, body, and httpArgs based on the service
    */
   doRequestInit(
-      cliInfo, bodyType, method, authMethod, requestArgs, httpArgs, kwargs) {
+      serviceContext, bodyType, method, authMethod, requestArgs, httpArgs, params) {
     if (!method) {
       method = this.httpMethod;
     }
@@ -324,26 +582,48 @@ class Service {
     if (!bodyType) {
       bodyType = this.bodyType;
     }
+
+    /*
+    let request = this.constructRequest(requestArgs, params)
+
+    let info = {'method':method};
+    let args = params;
+    if (this.serviceContext.issuer){
+      args['iss'] = this.serviceContext.issuer;
+    }
+    let headers = this.getAuthnHeader(request, authMethod, args);
+
+    let endpointUrl = '';
+    if (params['endpoint']){
+      endpointUrl = params['endpoint']
+    }else{
+      endpointUrl = this.getEndpoint();
+    }
+
+    info['url'] = getHttpUrl(endpointUrl, request, method);
+    */
+
     let info = this.requestInfo(
-        cliInfo, method, requestArgs, bodyType, authMethod, httpArgs, kwargs);
+        serviceContext, method, requestArgs, bodyType, authMethod, httpArgs, params);
     return this.updateHttpArgs(httpArgs, info);
   }
 
   /************************ RESPONSE HANDLING *************************/
 
+  /**
+   *  Pick out the fragment or query part from a URL.
+   *  @param info A URL possibly containing a query or a fragment part
+   *  @return the query/fragment part
+   */
   getUrlInfo(info) {
     let parts = null;
-    if ((info instanceof String)) {
+    if (typeof info == 'string'){
       if (info.indexOf('?') !== -1 || info.indexOf('#') !== -1) {
-        parts = this.urlParse(info);
-        let scheme = parts[0];
-        let netloc = parts[1];
-        let path = parts[2];
-        let params = parts[3];
-        let query = parts[4];
-        let fragment = parts[5];
+        parts = urlParse(info);
+        let query = parts.query;
+        let fragment = parts.fragment;
         if (query) {
-          info = query;
+          info = query.substring(1);
         } else {
           info = fragment;
         }
@@ -352,15 +632,151 @@ class Service {
     return info;
   }
 
+  urlUnsplit(dict){
+    var str = [];
+    for (var i = 0; i < Object.keys(dict).length; i++){
+      var key = Object.keys(dict)[i];
+      var val = dict[key];
+      str.push(encodeURIComponent(key) + "=" + encodeURIComponent(val));
+      
+    }
+    return str.join("&");
+  }
+
+  getHttpUrl(url, req, method='GET'){
+    let methods = ["GET", "DELETE"];
+    if (methods.indexOf(method) !== -1){
+      if (Object.keys(req.claims).length > 0){
+        let comp = urlParse(url);
+        if (comp.query){
+          req = Object.assign(parse_qs(comp.query));
+        }
+        
+        let parts = urlParse(url);
+        let scheme = parts[0];
+        let netloc = parts[1];
+        let path = parts[2];
+        let params = parts[3];
+        let query = parts[4];
+        let fragment = parts[5];
+        //let comp = urlSplit(uri.toString());
+        if (query) {
+          req = this.parseQs(query);
+        }
+        query = encodeURIComponent(req.claims);
+        return url + '?' + this.urlUnsplit(req.claims);
+      }else{
+        return url;
+      }
+    }else{
+      return url;
+    }
+  }
+
+  getRequestParameters({bodyType, method, authnMethod, requestArgs, httpArgs, params}= {bodyType:'', method:'', authnMethod:'', requestArgs:null, httpArgs:null}){
+
+    if (!method){
+      method = this.httpMethod;
+    }
+    if (!authnMethod){
+      authnMethod = this.defaultAuthnMethod;
+    }
+    if (!bodyType){
+      bodyType = this.bodyType;
+    }
+
+    let request = this.constructRequest(requestArgs, params);
+    
+    let info = {'method': method};
+    let args = {};
+    if (this.serviceContext && this.serviceContext.issuer){
+      args['iss'] = this.serviceContext.issuer;
+    }
+    let contentType = null;
+
+    if (bodyType == 'urlEncoded'){
+      contentType = URL_ENCODED;
+    }else{
+      contentType = JSON_ENCODED;
+    }
+    
+    let _headers = this.getAuthHeader(request, authnMethod, params);
+
+    let endpointUrl = this.getEndpoint(args);
+    info['url'] = this.getHttpUrl(endpointUrl, request, method);
+
+    let methods = ['POST', 'PUT'];
+    if (methods.indexOf(method) !== -1){
+      info['body'] = getHttpBody(request, contentType);
+      _headers = Object.assign(_headers, {'Content-Type': contentType});
+    } 
+
+    if (_headers && Object.keys(_headers).length){
+      info['headers'] = _headers;
+    }
+
+    return info;
+  }
+
+  query(resource, rel) {
+    rel = rel || null;
+    let uriNormalizer = new URINormalizer();
+    resource = uriNormalizer.normalize(resource);
+    let info = {};
+    info['resource'] = resource;
+    if (rel == null) {
+      if (this.defaultRel) {
+        info['rel'] = this.defaultRel;
+      }
+    } else if (rel instanceof String) {
+      info['rel'] = rel;
+    } else {
+      for (let i = 0; i < rel.length; i++) {
+        let val = rel[i];
+        if (info['rel']) {
+          info['rel'].push(val);
+        } else {
+          info['rel'] = [val];
+        }
+      }
+    }
+    if (resource.startsWith('http')) {
+      let part = urlParse(resource);
+      var host = part.hostName;
+      if (part.port !== null) {
+        host += ':' + str(part.port);
+      }
+    } else if (resource.startsWith('acct:')) {
+      let list = resource.split('@');
+      host = list[list.length - 1];
+      host = host.replace('/', '#').replace('?', '#').split('#')[0];
+    } else if (resource.startsWith('device:')) {
+      host = resource.split(':')[1];
+    } else {
+      console.log('Unknown schema');
+    }
+    return WF_URL.replace('%s', host) + '?' + this.urlEncode(info);
+  }
+
   /**
-   * Parse a response
-   * @param {*} info The response, can be either in a JSON or an urlencoded format
-   * @param {*} clientInfo Information about client and server
-   * @param {*} sformat Which serialization that was used
-   * @param {*} state The state
-   * @param {*} kwargs Extra key word arguments
+   * This the start of a pipeline that will:
+   *  - Deserializes a response into it's response message class.
+   *    Or oauth2 ErrorResponse if it's an error message
+   *  - verifies the correctness of the response by running the verify 
+   *    method belonging to the message class used.
+   *  - runs the doPostParseResponse method iff the response was not
+   *    an error response.
+   * 
+   * @param {Object<string, string>} info The response, can be either in a JSON or an urlencoded format
+   * @param {serviceContext} serviceContext Information about client and server
+   * @param {string} sformat Which serialization that was used
+   * @param {State} state The state
+   * @return Response instance such as an ErrorResponse
    */
-  parseResponse(info, clientInfo, sformat, state, kwargs) {
+  parseResponse(info, sformat, state, params) {
+    if (!sformat){
+      sformat = this.responseBodyType;
+    }
     if (sformat == 'urlencoded') {
       info = this.getUrlInfo(info);
     }
@@ -370,10 +786,12 @@ class Service {
     }
 
     let resp = null;
+    let responseObj = this.responseCls;    
     try {
       if (sformat === 'urlencoded') {
-        let responseObj = this.responseCls;
         resp = responseObj.prototype.fromUrlEncoded(info);
+      }else if (sformat === 'json'){
+        resp = responseObj.prototype.fromJSON(info);
       }
     } catch (err) {
       console.log('Error while deserializing');
@@ -384,8 +802,8 @@ class Service {
     if (this.events) {
       this.events.store('Protocol Response', resp);
     }
-
-    if (Object.keys(resp).indexOf('error') !== -1 &&
+    let errMsgs = null;
+    if (resp && Object.keys(resp).indexOf('error') !== -1 &&
         !(resp instanceof ErrorResponse)) {
       resp = null;
       try {
@@ -399,10 +817,10 @@ class Service {
 
       try {
         for (let i = 0; i < errMsgs.length; i++) {
+          var errMsg = errMsgs[i];
           try {
             if (sformat === 'urlencoded') {
-              resp = errMsg().prototype.fromUrlEncoded(info, sformat);
-              resp.verify();
+              resp = new errMsg().fromUrlEncoded(info);
               break;
             }
           } catch (err) {
@@ -413,33 +831,30 @@ class Service {
         console.log(err);
       }
     } else {
-      if (!kwargs) {
-        kwargs = {};
+      if (!params) {
+        params = {};
       }
-      kwargs['client_id'] = clientInfo.client_id;
-      kwargs['iss'] = clientInfo.issuer;
+      params['client_id'] = this.serviceContext.client_id;
+      params['iss'] = this.serviceContext.issuer;
 
-      if (Object.keys(kwargs).indexOf('key') !== -1 &&
-          Object.keys(kwargs).indexOf('keyjar') !== -1) {
-        kwargs['keyjar'] = this.keyjar;
+      if (Object.keys(params).indexOf('key') !== -1 &&
+          Object.keys(params).indexOf('keyjar') !== -1) {
+        params['keyjar'] = this.serviceContext.keyjar;
+      }
+
+      if (this.conf['verify']){
+        params = Object.assign(this.conf['verify'], params);
       }
 
       try {
         let responseObj = this.responseCls;
-        var verf = responseObj.prototype.verify(kwargs);
       } catch (err) {
         console.log(err);
       }
 
-      if (!verf) {
-        console.log('Verification of the response failed');
-      }
-
-      if (Object.keys(resp).indexOf('scope') !== -1) {
-        try {
-          resp['scope'] = kwargs['scope'];
-        } catch (err) {
-          console.log(err);
+      if (resp && Object.keys(resp.claims).indexOf('scope') !== -1) {
+        if (params['scope']){
+          resp.claims['scope'] = params['scope'];
         }
       }
     }
@@ -448,7 +863,7 @@ class Service {
     }
 
     try {
-      this.doPostParseResponse(resp, clientInfo, state);
+      this.doPostParseResponse(resp, state);
     } catch (err) {
       console.log(err);
     }
@@ -456,54 +871,35 @@ class Service {
   }
 
   /**
-   * Parse an error message.
-   * @param {*} reqresp The response
-   * @param {*} bodyType How the body is encoded
+   * Deal with a request response
+   * @param {string} reqresp The HTTP request response
+   * @param {string} bodyType How the body is encoded
+   * @return ErrorMessage class instance
    */
   parseErrorMessage(reqresp, bodyType) {
-    if (bodyType == 'txt') {
-      bodyType = 'urlEncoded';
-    } else {
+    if (bodyType == 'txt'){
+      bodyType = 'urlencoded';
+    }else{
       bodyType = bodyType;
     }
-    err = this.errorMsg().deserialize(reqresp.text, bodyType);
-    try {
-      err.verify();
-    } catch (err) {
-      console.log(err);
-      return err;
+    let err;
+    if (bodyType === 'urlencoded'){
+      err = new this.errorMsg().fromUrlEncoded(reqresp.text)
+    }else if (bodyType === 'json'){
+      err = new this.errorMsg().fromJSON(reqresp.text)
     }
-  }
-
-  /**
-   * Deal with a request response
-   * @param {*} reqresp The HTTP request response
-   * @param {*} clientInfo Information about the client/server session
-   * @param {*} responseBodyType If response in body one of 'json', 'jwt' or
-   *          'urlencoded'
-   * @param {*} state Session identifier
-   * @param {*} kwargs Extra keyword arguments
-   */
-  parseErrorMessage(reqresp, bodyType) {
-    if (SUCCESSFUL.indexOf(reqresp.statusCode) !== -1) {
-      valueType = this.getValueType(reqResp, responseBodyType);
-    }
-    try {
-      return this.parseResponse(
-          reqresp.text, clientInfo, valueType, state, kwargs);
-    } catch (err) {
-      console.log(err);
-    }
+    return err;
   }
 
   /**
    * Get the encoding of the response
-   * @param reqresp The response
-   * @param bodyType Assumed body type
+   * @param {string} reqresp The response
+   * @param {string} bodyType Assumed body type
+   * @return String with the encoding type
    */
-  getValueType(reqresp, bodyType) {
+  getValueType(reqresp, bodyType){
     if (bodyType) {
-      return verifyHeader(reqresp, bodyType);
+      return Util.prototype.verifyHeader(reqresp, bodyType);
     } else {
       return 'urlencoded';
     }
@@ -511,33 +907,52 @@ class Service {
 
   /**
    * Deal with a request response
-   * @param {*} reqresp The HTTP request response
-   * @param {*} clientInfo Information about the client/server session
-   * @param {*} responseBodyType If response in body one of 'json', 'jwt' or
+   * @param {string} reqresp The HTTP request response
+   * @param {serviceContext} serviceContext Information about the client/server session
+   * @param {string} responseBodyType If response in body one of 'json', 'jwt' or
    *      'urlencoded'
-   * @param {*} state Session identifier
-   * @param {*} kwargs Extra keyword arguments
+   * @param {State} state Session identifier
+   * @return response type such as an ErrorResponse
    */
-  parseRequestResponse(reqresp, clientInfo, responseBodyType, state, kwargs) {
+  parseRequestResponse(reqresp, serviceContext, responseBodyType, state, params) {
     responseBodyType = responseBodyType || '';
     state = state || '';
     let statusCodeArr = [302, 303];
 
     if (SUCCESSFUL.indexOf(reqresp.statusCode) !== -1) {
-      valueType = this.getValueType(reqresp, responseBodyType);
+      /*
+      var type;
+      var valueType;
+      try{
+        type = Util.prototype.getResponseBodyType(reqresp);
+      }catch(err){
+        valueType = responseBodyType;
+      }
+      if (type != responseBodyType){
+        console.log('Not the expected body type. Expected : ' + type);
+      }
+      var typeArr = ['json', 'jwt', 'urlencoded'];
+      var valueType;
+      if (typeArr.indexOf(type) !== -1){
+        valueType = type;
+      }else{
+        valueType = responseBodyType;
+      } */
+      
+      let valueType = this.getValueType(reqresp, responseBodyType);
 
       try {
         return this.parseResponse(
-            reqresp.text, clientInfo, valueType, state, kwargs);
+            reqresp.text, serviceContext, valueType, state, params);
       } catch (err) {
         console.log(err);
       }
-    } else if (reqresp.statusCodeArr.indexOf(reqresp.statusCode) !== -1) {
+    } else if (statusCodeArr.indexOf(reqresp.statusCode) !== -1) {
       return reqresp;
     } else if (reqresp.statusCode === 500) {
       console.log('Something went wrong');
     } else if (400 <= reqresp.statusCode < 500) {
-      valueType = this.getValueType(reqresp, responseBodyType);
+      let valueType = this.getValueType(reqresp, responseBodyType);
       let errResp = null;
       try {
         errResp = this.parseErrorMessage(reqresp, valueType);
@@ -551,19 +966,16 @@ class Service {
   }
 
   /**
-   *  The method that sends the request and handles the response returned.
-   *  This assumes a synchronous request-response exchange.
-   *  @param {*} url The URL to which the request should be sent
-   *  @param {*} response Response type
-   *  @param {*} method Which HTTP method to use
-   *  @param {*} body A message body if any
-   *  @param {*} responseBodyType The expected format of the body of the return message
-   *  @param http_args: Arguments for the HTTP client :return: A cls or
-   *  ErrorResponse instance or the HTTP response instance if no response body
-   *  was expected.
-   */
-
-  serviceRequest(reqresp, clientInfo, responseBodyType, state, kwargs) {
+  * The method that sends the request and handles the response returned.
+  * This assumes a synchronous request-response exchange.
+  * @param {string} reqresp The HTTP request response
+  * @param {serviceContext} serviceContext Information about the client/server session
+  * @param {string} responseBodyType If response in body one of 'json', 'jwt' or
+  *      'urlencoded'
+  * @param {State} state Session identifier
+  * @return Returns a request response
+  */ 
+  serviceRequest(reqresp, serviceContext, responseBodyType, state, params) {
     if (httpArgs == null) {
       httpArgs = {};
     }
@@ -573,15 +985,194 @@ class Service {
     } catch (err) {
       console.log('Exception on request');
     }
-    if (kwargs.indexOf('keyjar') === -1) {
-      kwargs['keyjar'] = this.keyjar;
+    if (params.indexOf('keyjar') === -1) {
+      params['keyjar'] = this.keyjar;
     }
     if (!responseBodyType) {
       responseBodyType = this.responseBodyType;
     }
     return this.parseRequestResponse(
-        resp, clientInfo, responseBodyType, kwargs);
+        resp, serviceContext, responseBodyType, params);
   }
+
+  /**
+   * A method run after the response has been parsed and verified.
+   * @param {Message} resp The response as a Message instance
+   * @param {State} state state value
+   * @param {Object<string, string>} params Extra params
+   */
+  updateServiceContext(resp, state, params){
+    this.storeItem(resp, this.request, state);
+  }
+
+  /**
+   *  The method where everything is setup for sending the request.
+   *  The request information is gathered and the where and how of sending the
+   *  request is decided.
+   * @param {*} requestArgs 
+   * @param {*} params 
+   */
+  constructRequest(requestArgs, params){
+    if (!requestArgs){
+      requestArgs = {};
+    }
+    return this.construct(requestArgs, params);
+  }
+
+
+addRedirectUris(requestArgs, service, params){
+  let context = service.serviceContext;
+  if (Object.keys(requestArgs).indexOf('redirect_uris') === -1){
+    if (context.callback){
+      requestArgs['redirect_uris'] = context.callback.values();
+    }else{
+      requestArgs['redirect_uris'] = context.redirectUris;
+    }
+  }
+  let list = [requestArgs, {}]
+  return list;
 }
 
-module.exports = Service;
+addRequestUri(requestArgs=null, service=null, params){
+  let context = service.serviceContext;
+  if (context.request_dir){
+    try{
+      if (context.providerInfo['require_request_uri_registration']){
+        requestArgs['request_uris'] = context.generateRequestUris(context.request_dir);
+      }
+    }catch(err){
+      console.log(err);
+    }
+  }
+  let list = [requestArgs, {}];
+  return list;
+}
+
+addPostLogoutRequestUris(requestArgs=null, service=null, params){
+  let uris = [];
+  if (Object.keys(requestArgs).indexOf('post_logout_redirect_uris') === -1){
+    try{
+      uris = service.serviceContext.post_logout_redirect_uris;
+    }catch(err){
+      console.log(err);
+    }
+    if (uris){
+      requestArgs['post_logout_redirect_uris'] = uris;
+    }
+  }
+  let list = [requestArgs, {}];
+  return list;
+}
+
+addJwksUriOrJwks(requestArgs=null, service=null, params){
+  if (Object.keys(requestArgs).indexOf('jwks_uri') !== -1){
+    if (Object.keys(requestArgs).indexOf('jwks') !== -1){
+      delete requestArgs['jwks'];
+    }
+    let list = [requestArgs, {}];
+    return list;
+  }else if (Object.keys(requestArgs).indexOf('jwks') !== -1){
+    let list = [requestArgs, {}];
+    return list;
+  }
+
+  let jwksList = ['jwks_uri', 'jwks'];
+  for (var i = 0; i < jwksList.length; i++){
+    let attr = jwksList[i];
+    let val = service.serviceContext[attr];
+    if (val){
+      requestArgs[attr] = val;
+      break;
+    }else{
+      try{
+        val = service.serviceContext.config[attr];
+      }catch(err){
+        return
+      }
+      if (val){
+        requestArgs[attr] = val;
+      }
+      break;
+    }
+  }
+  let list = [requestArgs, {}];
+  return list;
+}
+
+responseTypesToGrantTypes(responseTypes){
+  let gt = []
+  for (var i = 0; i < responseTypes.length; i++){
+    let responseType = responseTypes[i];
+    try{
+      gt = rt2gt[responseType];
+    }catch(err){
+      console.log(err);
+    }
+    return gt;
+  }
+}
+}
+
+function addJwksUriOrJwks(requestArgs=null, service=null, params){
+  if (Object.keys(requestArgs).indexOf('jwks_uri') !== -1){
+    if (Object.keys(requestArgs).indexOf('jwks') !== -1){
+      delete requestArgs['jwks'];
+    }
+    let list = [requestArgs, {}];
+    return list;
+  }else if (Object.keys(requestArgs).indexOf('jwks') !== -1){
+    let list = [requestArgs, {}];
+    return list;
+  }
+
+  let jwksList = ['jwks_uri', 'jwks'];
+  for (var i = 0; i < jwksList.length; i++){
+    let attr = jwksList[i];
+    let val = service.serviceContext[attr];
+    if (val){
+      requestArgs[attr] = val;
+      break;
+    }else{
+      try{
+        val = service.serviceContext.config[attr];
+      }catch(err){
+        return
+      }
+      if (val){
+        requestArgs[attr] = val;
+      break;
+      }
+    }
+  }
+  let list = [requestArgs, {}];
+  return list;
+}
+
+/** 
+ * Takes a dictionary with a reference to which service subclass that should be 
+ * instantiated as key and specific service configuration for that instance as 
+ * value.
+ * @param {Object<string, object>} srvs Service subclass as key and configuration as value
+ * @param {function} serviceFactory OIC/ OAuth2 factory method 
+ * @param {KeyJar} keyJar OIDCMsg KeyJar instance that contains the RP signing and encyrpting keys
+ * @param {string} clientAuthnMethod One of the six client authentication methods
+ * @return A dictionary containing the necessary services and their instances
+ */
+function buildServices(serviceDefinitions, serviceFactory, serviceContext, stateDb, clientAuthnMethod) {
+  //let http = params['httpLib'];
+  //let keyJar = params['keyJar'];
+  //let clientAuthnMethod = params['clientAuthnMethod'];
+  let service = {};
+  for (let i = 0; i < Object.keys(serviceDefinitions).length; i++) {
+    let serviceName = Object.keys(serviceDefinitions)[i];
+    let serviceConfiguration = serviceDefinitions[serviceName]
+    let srv = serviceFactory(serviceName, serviceContext, stateDb, clientAuthnMethod, serviceConfiguration); 
+    service[srv.request] = srv;
+    service['any'] = new Service(serviceContext, stateDb, clientAuthnMethod);
+  }
+  return service;
+}
+
+module.exports.Service = Service;
+module.exports.addJwksUriOrJwks = addJwksUriOrJwks;
+module.exports.buildServices = buildServices;

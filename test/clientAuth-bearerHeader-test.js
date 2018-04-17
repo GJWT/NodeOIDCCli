@@ -1,17 +1,21 @@
 const assert = require('chai').assert;
 const AccessTokenRequest =
-    require('../oicMsg/oauth2/init.js').AccessTokenRequest;
+    require('../nodeOIDCMsg/src/oicMsg/oauth2/requests').AccessTokenRequest;
 const AccessTokenResponse =
-    require('../oicMsg/oauth2/init.js').AccessTokenResponse;
+    require('../nodeOIDCMsg/src/oicMsg/oauth2/responses').AccessTokenResponse;
 const AuthorizationRequest =
-    require('../oicMsg/oauth2/init.js').AuthorizationRequest;
+    require('../nodeOIDCMsg/src/oicMsg/oauth2/requests').AuthorizationRequest;
 const AuthorizationResponse =
-    require('../oicMsg/oauth2/init.js').AuthorizationResponse;
+    require('../nodeOIDCMsg/src/oicMsg/oauth2/responses').AuthorizationResponse;
 const BearerHeader = require('../src/clientAuth/bearerHeader').BearerHeader;
 const Client = require('../src/oauth2/init').Client;
-const CLIENT_AUTHN_METHOD =
-    require('../src/clientAuth/clientAuth').CLIENT_AUTHN_METHOD;
-const ResourceRequest = require('../oicMsg/oauth2/init.js').ResourceRequest;
+const CLIENT_AUTHN_METHOD = require('../src/clientAuth/clientAuth').CLIENT_AUTHN_METHOD;
+const ResourceRequest = require('../nodeOIDCMsg/src/oicMsg/oauth2/requests').ResourceRequest;
+const State = require('../src/state').State;
+const buildServices = require('../src/service').buildServices;
+const DEFAULT_SERVICES = require('../src/oic/init').DEFAULT_SERVICES;
+const OicFactory = require('../src/oic/service/service').OicFactory;
+const ServiceContext = require('../src/serviceContext').ServiceContext;
 
 const CLIENT_ID = 'A';
 
@@ -27,21 +31,42 @@ const REQ_ARGS = {
   response_type: 'code',
 };
 
-function getClient() {
-  const client = new Client();
-  client.init(CLIENT_AUTHN_METHOD, CLIENT_CONF);
-  const sdb = client.clientInfo.stateDb;
-  sdb.dict = {};
-  sdb.dict['ABCDE'] = {code: 'accessCode'};
-  client.clientInfo.clientSecret = 'boardingPass';
-  return client;
+class DB{
+  constructor(){
+    this.db = {};
+  }
+
+  set(key, value){
+    this.db[key] = value;
+  }
+
+  get(item){
+    return this.db[item];
+  }
+}
+
+function getService(){
+  let serviceContext = new ServiceContext(null, CLIENT_CONF);
+  serviceContext.client_secret = 'boarding pass';
+  return serviceContext;
+}
+
+function getServiceContext(){
+  let serviceContext = new ServiceContext(null, CLIENT_CONF);
+  serviceContext.client_secret = 'boarding pass';
+  return serviceContext;
+}
+
+function getServices(){
+  let db = new DB();
+  let authRequest = new AuthorizationRequest().toJSON({redirect_uri: 'http://example.com', state: 'ABCDE'});
+  let authResponse = new AuthorizationResponse().toJSON({access_token: 'token', state: 'ABCDE'});
+  db.set('ABCDE', new State().toJSON({iss:'Issuer', auth_request:authRequest, auth_response:authResponse}));
+  return buildServices(DEFAULT_SERVICES, OicFactory, getServiceContext(), db, CLIENT_AUTHN_METHOD);
 }
 
 describe('Test bearer header', () => {
-  let client;
-  beforeEach(() => {
-    client = getClient();
-  });
+  let services = getServices();
 
   it('test construct', () => {
     const request = new ResourceRequest({access_token: 'Sesame'});
@@ -71,17 +96,16 @@ describe('Test bearer header', () => {
 
   it('test construct with resource request', () => {
     const bh = new BearerHeader();
-    const cis = new ResourceRequest({access_token: 'Sesame'});
-    const httpArgs = bh.construct(cis, client.clientInfo);
-    assert.isUndefined(cis.access_token);
+    const request = new ResourceRequest({access_token: 'Sesame'});
+    const httpArgs = bh.construct(request, getService());
+    assert.isUndefined(request.access_token);
     assert.deepEqual(httpArgs, {headers: {Authorization: 'Bearer Sesame'}});
   });
 
   it('test construct with token', () => {
-    client.clientInfo.stateDb['AAAA'] = {};
-    const resp1 = new AuthorizationResponse('auth_grant', 'AAAA');
-    new client.service.Authorization().parseResponse(
-        resp1, client.clientInfo, 'urlencoded');
+    services['authorization'].stateDb.set('AAAA', new State({iss:'Issuer'}).toJSON());
+    const resp1 = new AuthorizationResponse({code:'auth_grant', state: 'AAAA'});
+    services['authorization'].parseResponse(resp1.toUrlEncoded({code:'auth_grant', state: 'AAAA'}), 'urlencoded');
     // based on state find the code and then get an access token
     const resp2 = new AccessTokenResponse({
       access_token: 'token1',
@@ -89,10 +113,16 @@ describe('Test bearer header', () => {
       expires_in: 0,
       state: 'AAAA',
     });
-    new client.service.AccessToken().parseResponse(
-        resp2, client.clientInfo, 'urlencoded');
+    let response2 = services['accessToken'].parseResponse(
+      resp2.toUrlEncoded({
+        access_token: 'token1',
+        token_type: 'Bearer',
+        expires_in: 0,
+        state: 'AAAA',
+      }), 'urlencoded');
+    services['accessToken'].updateServiceContext(response2, 'AAAA');
     const httpArgs = new BearerHeader().construct(
-        new ResourceRequest(), client.clientInfo, null, null, {state: 'AAAA'});
+      new ResourceRequest(), services['accessToken'], null,{state: 'AAAA'});
     assert.deepEqual(httpArgs, {headers: {Authorization: 'Bearer token1'}});
   });
 });

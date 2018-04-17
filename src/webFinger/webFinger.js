@@ -1,15 +1,30 @@
 const WF_URL = 'https://%s/.well-known/webfinger';
 const OIC_ISSUER = 'http://openid.net/specs/connect/1.0/issuer';
 const URINormalizer = require('./uriNormalizer').URINormalizer;
+const Service = require('../service').Service;
 
-class WebFinger {
-  constructor() {}
+/**
+ * WebFinger
+ * @class
+ * @constructor
+ */
+class WebFinger extends Service{
+  constructor(serviceContext, stateDb, clientAuthnMethod, conf, rel, params) {
+    super(serviceContext, stateDb, clientAuthnMethod, conf);
+    this.jrd = null;
+    this.events = null;
+    this.request = 'webfinger';
+    this.httpMethod = 'GET';
+    this.responseBodyType = 'json';
+    this.synchronous = true;
+    this.defaultRel = rel|| OIC_ISSUER;
+    return this;
+  }
 
   init(defaultRel, httpD) {
     this.defaultRel = defaultRel || null;
     this.httpD = httpD || null;
-    this.jrd = null;
-    this.events = null;
+
   }
 
   query(resource, rel) {
@@ -50,6 +65,30 @@ class WebFinger {
       console.log('Unknown schema');
     }
     return WF_URL.replace('%s', host) + '?' + this.urlEncode(info);
+  }
+
+  getRequestParameters({requestArgs=null, params}){
+    if (!requestArgs){
+      requestArgs = {};
+    }
+
+    let resource = '';
+    if (requestArgs && requestArgs['resource']){
+      resource = requestArgs['resource'];
+    }
+    else if (params && params['resource']){
+      resource = params['resource'];
+    } else if (this.serviceContext.config['resource']){
+      resource = this.serviceContext.config['resource'];
+    }else{
+      //throw new JSError('resource', 'MissingRequiredAttribute');
+    }
+
+    if (params && Object.keys(params).indexOf('rel') !== -1){
+      return {'url' : this.query(resource, params['rel']), 'method': 'GET'};
+    }else{
+      return {'url' : this.query(resource), 'method' : 'GET'};
+    }
   }
 
   urlEncode(dict) {
@@ -127,17 +166,39 @@ class WebFinger {
     }
   }
 
-  response(subject, base, kwargs) {
+  response(subject, base, params) {
     this.jrd = JRD();
     this.jrd['subject'] = subject;
     link = LINK();
     link['rel'] = OIC_ISSUER;
     link['href'] = base;
     this.jrd['links'] = [link];
-    for (let i = 0; i < kwargs.items().length; i++) {
+    for (let i = 0; i < params.items().length; i++) {
       this.jrd[k] = v;
     }
     return json.dumps(this.jrd.export());
+  }
+
+  updateServiceContext(resp, state, params){
+    if (resp.claims['links']){
+      let links  = resp.claims['links'];
+      for (var i = 0; i < links.length; i++){
+        let link = links[i];
+        if (link['rel'] == this.defaultRel){
+          let href = link['href'];
+          if (!(this.conf && this.conf['allow_http_links'])){
+            if (href.startsWith('http://')){
+              // throw new JSError('http link not allowed', 'ValueError');
+            }
+          }
+          this.serviceContext.issuer = link['href'];
+          break;
+        }
+      }
+    }else{
+      // throw new JSError('Missing Required Attribute - links', MissingRequiredAttribute);
+    }
+    return resp;
   }
 }
 

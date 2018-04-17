@@ -1,29 +1,32 @@
-const oauth2 = require('../../../oicMsg/oauth2/init.js');
-const Service = require('../../service.js');
+const oauth2 = require('../../../nodeOIDCMsg/src/oicMsg/oauth2/init.js');
+const Service = require('../../service.js').Service;
+const Message = require('../../../nodeOIDCMsg/src/oicMsg/message');
+const requests = require('../../../nodeOIDCMsg/src/oicMsg/oauth2/requests');
+const responses = require('../../../nodeOIDCMsg/src/oicMsg/oauth2/responses');
+const KeyJar = require('../../../nodeOIDCMsg/src/oicMsg/keystore/keyJar');
 
+const OIDCONF_PATTERN = "/.well-known/openid-configuration"
+
+/**
+ * ProviderInfoDiscovery
+ * @class
+ * @constructor
+ * @extends Service
+ */
 class ProviderInfoDiscovery extends Service {
-  constructor() {
-    super();
-    this.msgType = oauth2.Message;
-    this.responseCls = oauth2.ASConfigurationResponse;
-    this.errorMsg = oauth2.ErrorResponse;
+  constructor(serviceContext, stateDb, clientAuthnMethod=null, conf=null) {
+    super(serviceContext, stateDb, clientAuthnMethod, conf);
+    this.msgType = Message;
+    this.responseCls = responses.ASConfigurationResponse;
+    this.errorMsg = responses.ErrorResponse;
     this.synchronous = true;
     this.request = 'provider_info';
     this.httpMethod = 'GET';
-    this.postParseResponse.push(this.oauthPostParseResponse);
+    //this.postParseResponse.push(this.oauthPostParseResponse);
   }
 
-  init(httpLib, keyJar, clientAuthnMethod) {
-    super.init(httpLib, keyJar, clientAuthnMethod);
-    this.msgType = oauth2.Message;
-  }
-
-  requestInfo(cliInfo, method, requestArgs, lax, kwargs) {
-    method = method || 'GET';
-    requestArgs = requestArgs || null;
-    lax = lax || false;
-
-    this.issuer = cliInfo.issuer;
+  requestInfo(method='GET', requestArgs=null, params) {
+    let issuer = this.serviceContext.issuer;
     let issuerUpdated = null;
     if (issuer.endsWith('/')) {
       let splitIssuer = issuer.split('');
@@ -33,73 +36,64 @@ class ProviderInfoDiscovery extends Service {
     } else {
       issuerUpdated = issuer;
     }
-    return {'uri': OIDCONF_PATTERN % issuer};
+    return {'uri': issuer + OIDCONF_PATTERN};
   }
 
-  /**
-   * Deal with Provider Config Response
-   * @param {*} resp The provider info response
-   * @param {*} cliInfo: Information about the client/server session
-   */
-  oauthPostParseResponse(resp, cliInfo, kwargs) {
-    let issuer = cliInfo.issuer;
-    let pcrIssuer = null;
-    if (Object.keys(resp).indexOf(issuer) !== -1) {
-      let pcrIssuer = resp['issuer'];
-      let issuerUpdated = null;
-      if (resp['issuer'].endsWith('/')) {
-        if (issuer.endsWith('/')) {
-          issuerUpdated = issuer;
-        } else {
-          issuerUpdated = issuer + '/';
+  updateServiceContext(resp, params){
+    let issuer = this.serviceContext.issuer;
+    let _pcrIssuer = null;
+    if (Object.keys(resp).indexOf('issuer') !== -1){
+      _pcrIssuer = resp['issuer'];
+      if (resp['issuer'].endsWith('/')){
+        if (issuer.endsWith('/')){
+          _issuer = issuer
+        }else{
+          _issuer = issuer + '/';
         }
-      } else {
-        if (issuer.endsWith('/')) {
+      }else{
+        if (issuer.endsWith('/')){
           let splitIssuer = issuer.split('');
           let reversedIssuer = splitIssuer.reverse();
-          let joinedIssuer = reversedIssuer.join('');
-          issuerUpdated = joinedIssuer;
-        } else {
-          issuerUpdated = issuer;
+          _issuer = reversedIssuer.join('');
+        }else{
+          _issuer = issuer;
         }
       }
-
-      try {
-        cliinfo.allow['issuerMismatch'];
-      } catch (err) {
-        try {
-          assert.deepEquals(issuer, pcrIssuer);
-        } catch (err) {
-          console.log('Provider info issuer mismatch');
+      try{
+        this.serviceContext.allow['issuer_mismatch'];
+      }catch(err){
+        if (_issuer !== _pcrIssuer){
+          //throw new JSError('provider info issuer mismatch', _pcrIssuer);
         }
       }
-    } else {
-      pcrIssuer = issuer;
+    }else{
+      _pcrIssuer = issuer;
     }
 
-    cliInfo.issuer = pcrIssuer;
-    liInfo.providerInfo = resp;
+    this.serviceContext.issuer = _pcrIssuer;
+    this.serviceContext.providerInfo = resp;
 
-    for (let i = 0; i < Object.keys(resp).length; i++) {
+    for (var i = 0; i < Object.keys(resp).length; i++){
       let key = Object.keys(resp)[i];
-      let val = resp[key];
-      if (key.endsWith('endpoint')) {
-        for (let i = 0; i < cliInfo.service.values().length; i++) {
-          if (srv.endpointName == key) {
-            srv.endpoint = val;
+      let val = resp[key]
+      if (key.endsWith('endpoint')){
+        for (var i = 0; i < this.serviceContext.service.values().length; i++){
+          if (_srv.endpointName === key){
+            _srv.endpoint = val;
           }
         }
       }
     }
-
-    if (cliInfo.keyjar) {
-      kj = cliInfo.keyjar;
-    } else {
+    let kj = null;
+    try{
+      kj = this.serviceContext.keyJar;
+    }catch(err){
       kj = new KeyJar();
     }
 
-    cliInfo.keyJar = kj;
-  };
+    //kj.loadKeys(resp, _pcrIssuer)
+    this.serviceContext.keyJar = kj;
+  }
 }
 
 module.exports.ProviderInfoDiscovery = ProviderInfoDiscovery;

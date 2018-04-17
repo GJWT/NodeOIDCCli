@@ -1,28 +1,30 @@
-const Service = require('../../service');
+const Service = require('../../service').Service;
+const Message = require('../../../nodeOIDCMsg/src/oicMsg/message');
+const ErrorResponse = require('../../../nodeOIDCMsg/src/oicMsg/oauth2/responses').ErrorResponse;
+const CheckSessionRequest = require('../../../nodeOIDCMsg/src/oicMsg/oic/requests').CheckSessionRequest;
 
+/**
+ * CheckSession
+ * @class 
+ * @constructor
+ * @extends Service
+ */
 class CheckSession extends Service {
-  constructor() {
-    super();
-    this.msgType = oic.CheckSessionRequest;
+  constructor(serviceContext, stateDb, clientAuthnMethod=null, conf=null) {
+    super(serviceContext, stateDb, clientAuthnMethod, conf);
+    this.msgType = CheckSessionRequest;
     this.responseCls = Message;
     this.errorMsg = ErrorResponse;
     this.endpointName = '';
     this.synchronous = true;
     this.request = 'checkSession';
-  }
-
-  init(httpLib, keyJar, clientAuthnMethod) {
-    httpLib = httpLib || null;
-    keyJar = keyJar || null;
-    clientAuthnMethod = clientAuthnMethod || null;
-    super.init(httpLib, keyJar, clientAuthnMethod);
     this.preConstruct = [this.oicPreConstruct];
   }
 
-  oicPreConstruct(cliInfo, requestArgs, kwargs) {
-    requestArgs = requestArgs || null;
-    requestArgs = this.setIdToken(cliInfo, requestArgs, kwargs);
-    return requestArgs, {};
+  oicPreConstruct(requestArgs, request, params) {
+    requestArgs = request.multipleExtendRequestArgs(requestArgs, params['state'], ['id_token'], ['auth_response', 'token_response', 'refresh_token_response']);
+    let list = [requestArgs, {}];
+    return list;
   }
 }
 

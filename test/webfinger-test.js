@@ -131,7 +131,7 @@ describe('JRD tests', function() {
       ]
     });
     assert.deepEqual(
-        Object.keys(link), ['subject', 'aliases', 'properties', 'links']);
+      Object.keys(link), ['subject', 'aliases', 'properties', 'links']);
   });
 
   it('Test jrd2', function() {
@@ -160,12 +160,12 @@ describe('JRD tests', function() {
         },
         {'rel': 'vcard', 'href': 'https://www.example.com/~bob/bob.vcf'}
       ]
-    }
+    };
 
     let jrd = new JRD();
     let jrd0 = jrd.fromJSON(JSON.stringify(ex0));
-    for (let i = 0; i < jrd0['links'].length; i++) {
-      let link = jrd0['links'][i];
+    for (let i = 0; i < jrd0.claims['links'].length; i++) {
+      let link = jrd0.claims['links'][i];
       if (link['rel'] == 'blog') {
         assert.deepEqual(link['href'], 'http://blogs.example.com/bob/');
         break;
@@ -188,7 +188,7 @@ describe('JRD tests', function() {
     };
 
     let resp = new JRD().fromJSON(JSON.stringify(ex));
-    assert.deepEqual(resp['dummy'], 'foo');
+    assert.deepEqual(resp.claims['dummy'], 'foo');
   });
 });
 
@@ -201,24 +201,24 @@ describe('webfinger tests', function() {
   it('Test query device', function() {
     let query = wf.query('device:p1.example.com');
     assert.deepEqual(
-        query,
-        'https://p1.example.com/.well-known/webfinger?resource=device%3Ap1.example.com');
+      query,
+      'https://p1.example.com/.well-known/webfinger?resource=device%3Ap1.example.com&rel=http%3A%2F%2Fopenid.net%2Fspecs%2Fconnect%2F1.0%2Fissuer');
   });
 
   it('Test query device', function() {
     let query = wf.query(
-        'acct:bob@example.com',
-        ['http://webfinger.net/rel/profile-page', 'vcard']);
+      'acct:bob@example.com',
+      ['http://webfinger.net/rel/profile-page', 'vcard']);
     assert.deepEqual(
-        query,
-        'https://example.com/.well-known/webfinger?resource=acct%3Abob%40example.com&rel=http%3A%2F%2Fwebfinger.net%2Frel%2Fprofile-page&rel=vcard');
+      query,
+      'https://example.com/.well-known/webfinger?resource=acct%3Abob%40example.com&rel=http%3A%2F%2Fwebfinger.net%2Frel%2Fprofile-page&rel=vcard');
   });
 
   it('Test query acct', function() {
     wf.init(OIC_ISSUER);
     let query = wf.query('acct:carol@example.com');
     assert.deepEqual(
-        query,
-        'https://example.com/.well-known/webfinger?resource=acct%3Acarol%40example.com&rel=http%3A%2F%2Fopenid.net%2Fspecs%2Fconnect%2F1.0%2Fissuer');
+      query,
+      'https://example.com/.well-known/webfinger?resource=acct%3Acarol%40example.com&rel=http%3A%2F%2Fopenid.net%2Fspecs%2Fconnect%2F1.0%2Fissuer');
   });
 });

@@ -1,14 +1,23 @@
-const oauth2 = require('../../../oicMsg/oauth2/init.js');
-const Service = require('../../service.js');
+const oauth2 = require('../../../nodeOIDCMsg/src/oicMsg/oauth2/responses');
+const Service = require('../../service.js').Service;
 const oauth2Service = require('./service');
+const requests = require('../../../nodeOIDCMsg/src/oicMsg/oauth2/requests');
+const responses = require('../../../nodeOIDCMsg/src/oicMsg/oauth2/responses');
+const serviceContext = require('../../serviceContext');
 
+/**
+ * RefreshAccessToken
+ * @class 
+ * @constructor
+ * @extends Service
+ */
 class RefreshAccessToken extends Service {
-  constructor() {
-    super();
+  constructor(serviceContext, stateDb, clientAuthnMethod=null, conf=null) {
+    super(serviceContext, stateDb, clientAuthnMethod, conf);
     this.preConstruct = [this.oauthPreConstruct];
-    this.msgType = oauth2.RefreshAccessTokenRequest;
-    this.responseCls = oauth2.AccessTokenResponse;
-    this.errorMsg = oauth2.TokenErrorResponse;
+    this.msgType = requests.RefreshAccessTokenRequest;
+    this.responseCls = responses.AccessTokenResponse;
+    this.errorMsg = responses.TokenErrorResponse;
     this.endpointName = 'token_endpoint';
     this.synchronous = true;
     this.request = 'refresh_token';
@@ -16,30 +25,24 @@ class RefreshAccessToken extends Service {
     this.httpMethod = 'POST';
   }
 
-  init(httpLib, keyJar, clientAuthnMethod) {
-    httpLib = httpLib || null;
-    keyJar = keyJar || null;
-    clientAuthnMethod = clientAuthnMethod || null;
-    super.init(httpLib, keyJar, clientAuthnMethod);
-    this.preConstruct = [this.oauthPreConstruct];
-    this.msgType = oauth2.RefreshAccessTokenRequest;
+  updateServiceContext(resp, key='', params){
+    this.storeItem(resp, 'token_response', key);
   }
 
-  oauthPreConstruct(cliInfo, requestArgs, kwargs) {
-    let state = oauth2Service.getState(requestArgs, kwargs);
-    let reqArgs = cliInfo.stateDb.getResponseArgs(
-        state, new RefreshAccessToken().msgType);
-    if (requestArgs == null) {
-      requestArgs = reqArgs;
-    } else {
-      for (let i = 0; i < Object.keys(reqArgs).length; i++) {
-        let key = Object.keys(reqArgs)[i];
-        let val = reqArgs[key]
-        requestArgs[key] = val;
-      }
+  oauthPreConstruct(requestArgs, request, params) {
+    let req = new request.msgType();
+    let _state = oauth2Service.getState(requestArgs, params);
+    let parameters = Object.keys(req.cParam);
+    let _args = request.extendRequestArgs({}, oauth2.AuthorizationResponse, 'auth_response', _state, parameters);
+    _args = request.extendRequestArgs(_args, oauth2.AccessTokenResponse, 'token_response', _state, parameters);
+    if (requestArgs == null){
+      requestArgs = _args;
+    }else{
+      _args = Object.assign(requestArgs, _args);
+      requestArgs = _args;
     }
     let list = [requestArgs, {}];
-    return list;
+    return list
   }
 }
 

@@ -78,11 +78,11 @@ OtherError.prototype.constructor = OtherError;
 
 function OtherError() {};
 
-NoClientInfoReceivedError.prototype = new OicCliError();
-NoClientInfoReceivedError.prototype = Object.create(OicCliError.prototype);
-NoClientInfoReceivedError.prototype.constructor = NoClientInfoReceivedError;
+NoserviceContextReceivedError.prototype = new OicCliError();
+NoserviceContextReceivedError.prototype = Object.create(OicCliError.prototype);
+NoserviceContextReceivedError.prototype.constructor = NoserviceContextReceivedError;
 
-function NoClientInfoReceivedError() {};
+function NoserviceContextReceivedError() {};
 
 InvalidRequest.prototype = new OicCliError();
 InvalidRequest.prototype = Object.create(OicCliError.prototype);
@@ -94,10 +94,6 @@ NonFatalException.prototype = new OicCliError();
 NonFatalException.prototype = Object.create(OicCliError.prototype);
 NonFatalException.prototype.constructor = NonFatalException;
 
-/**
- * :param resp: A response that the function/method would return on non-error
- * :param msg: A message describing what error has occurred.
- */
 function NonFatalException() {};
 
 NonFatalException.prototype.init = function(resp, msg) {
@@ -196,7 +192,7 @@ module.exports.AuthzError = AuthzError;
 module.exports.UnsupportedMethod = UnsupportedMethod;
 module.exports.NonFatalException = NonFatalException;
 module.exports.InvalidRequest = InvalidRequest;
-module.exports.NoClientInfoReceivedError = NoClientInfoReceivedError;
+module.exports.NoserviceContextReceivedError = NoserviceContextReceivedError;
 module.exports.OtherError = OtherError;
 module.exports.ParseError = ParseError;
 module.exports.GrantError = GrantError;

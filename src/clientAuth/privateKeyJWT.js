@@ -1,33 +1,45 @@
-const JWSAuthnMethod = require('./jwsAuth').JWSAuthnMethod;
+/**
+ * @fileoverview One of the six different client authentication / authorization
+ * methods supported by OICCli that adds the corresponding authentication
+ * information to the request.Clients that have registered a public key can 
+ * sign a JWT using that key.
+ */
+
+const BearerBody = require('./bearerBody').BearerBody;
 const BearerHeader = require('./bearerHeader').BearerHeader;
 const ClientSecretBasic = require('./clientSecretBasic').ClientSecretBasic;
-const ClientSecretPost = require('./clientSecretPost').ClientSecretPost;
 const ClientSecretJWT = require('./clientSecretJWT').ClientSecretJWT;
-const BearerBody = require('./bearerBody').BearerBody;
+const ClientSecretPost = require('./clientSecretPost').ClientSecretPost;
+const JWSAuthnMethod = require('./jwsAuth').JWSAuthnMethod;
 const JWT_BEARER = require('../init.js').OICCli.JWT_BEARER;
 
+/**
+ * PrivateKeyJWT
+ * @class
+ * @private
+ * @extends JWSAuthnMethod
+ * Clients that have registered a public key can sign a JWT using that key.
+ */
 class PrivateKeyJWT extends JWSAuthnMethod {
   constructor() {
     super();
   }
 
   /**
-   * More complicated logic then I would have liked it to be
-   * @param {*} cis Request class instance
+   * @param {*} request Request class instance
    * @param {*} ci Client information
    * @param {*} requestArgs Request arguments
    * @param {*} httpArgs HTTP header arguments
-   * @param {*} kwargs
    */
-  chooseAlgorithm(entity, kwargs) {
+  chooseAlgorithm(entity, params) {
     entity = entity || 'privateKeyJwt';
-    return JWSAuthnMethod.chooseAlgorithm(entity, kwargs);
+    return JWSAuthnMethod.chooseAlgorithm(entity, params);
   }
 
-  getSigningKey(algorithm, cliInfo) {
-    cliInfo = cliInfo || null;
+  getSigningKey(algorithm, serviceContext) {
+    serviceContext = serviceContext || null;
     alg = alg || algorithm;
-    return cliInfo.keyjar.getSigningKey(alg2keyType(algorithm), '', alg);
+    return serviceContext.keyjar.getSigningKey(alg2keyType(algorithm), '', alg);
   }
 }
 

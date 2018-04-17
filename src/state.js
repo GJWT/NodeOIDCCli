@@ -1,215 +1,220 @@
 const AuthorizationResponse =
-    require('../oicMsg/oauth2/init.js').AuthorizationResponse;
-const Token = require('../oicMsg/src/models/tokenProfiles/token');
+    require('../nodeOIDCMsg/src/oicMsg/oauth2/init.js').AuthorizationResponse;
+const Message = require('../nodeOIDCMsg/src/oicMsg/message');
+const SINGLE_REQUIRED_STRING = require('../nodeOIDCMsg/src/oicMsg/message').SINGLE_REQUIRED_STRING;
+const SINGLE_OPTIONAL_JSON = require('../nodeOIDCMsg/src/oicMsg/message').SINGLE_OPTIONAL_JSON;
 
-class StateJWT extends Token {
-  constructor() {
+/** 
+ * StateJWT
+ * @class
+ * @constructor
+ * @extends Message
+ */
+class State extends Message{
+  constructor(claims) {
     super();
-    this.cParam = super.cParam;
-    this.cParam = Object.assign(this.cParam, {
-      'rfp': SINGLE_REQUIRED_STRING,
-      'kid': SINGLE_OPTIONAL_STRING,
-      'target_link_uri': SINGLE_OPTIONAL_STRING,
-      'as': SINGLE_OPTIONAL_STRING,
-      'at_hash': SINGLE_OPTIONAL_STRING,
-      'c_hash': SINGLE_OPTIONAL_STRING
-    });
+    if (claims){
+      this.claims = claims;
+    }else{
+      this.claims = {};
+    }
+    this.cParam = {
+      iss: SINGLE_REQUIRED_STRING,
+      auth_request: SINGLE_OPTIONAL_JSON,
+      auth_response: SINGLE_OPTIONAL_JSON,
+      token_response: SINGLE_OPTIONAL_JSON,
+      refresh_token_request: SINGLE_OPTIONAL_JSON,
+      refresh_token_response: SINGLE_OPTIONAL_JSON,
+      user_info: SINGLE_OPTIONAL_JSON
+    };
   }
 }
 
 /**
+ * State
  * Given state I need to be able to find valid access token and id_token
  * and to whom it was sent.
+ * @class
+ * @constructor
  */
-class State {
-  init(client_id, db, dbName, lifeTime) {
-    db = db || null;
-    dbName = dbName = '';
-    lifeTime = lifeTime || 600;
+class StateInterface {
 
-    this.client_id = client_id;
-    this.db = db;
-    if (this.db == null) {
-      if (dbName) {
-        this.db = shelve.open(dbName, true);
-      } else {
-        this.db = {};
+  constructor(stateDb){
+    this.stateDb = stateDb;
+  };
+
+  /**
+   * Get the state connected to a given key.
+   * 
+   * @param {Key} key Key into the state database
+   * @return State instance
+   */
+  getState(key){
+    const _data = this.stateDb.get(key);
+    if (!_data){
+      //throw new JSError(key, 'KeyError');
+    }else{
+      return new State().fromJSON(_data);
+    }
+  }
+
+  /**
+   * Store a service response.
+   * @param {Message} item The item as a Message
+            subclass instance or a JSON document.
+   * @param {string} itemType The type of request or response
+   * @param {Key} key The key under which the information should be stored in
+            the state database
+   */
+  storeItem(item, itemType, key){
+    let _state;
+    if (this.getState(key)){
+      _state = this.getState(key)
+    }else{
+      _state = new State();
+    }
+
+    try{
+      _state.claims[itemType] = item.toJSON();
+      item.fromJSON(item.claims);
+    }catch(err){
+      _state.claims[itemType] = item.claims;
+    }
+    this.stateDb.set(key, _state.toJSON());
+  }
+
+  /** 
+   * Get the Issuer ID
+   * @param {Key} key Key to the information in the state database
+   * @return The issuer ID
+   */
+  getIssuer(key){
+    let _state = this.stateDb.get(key);
+    if (!state){
+      //throw new JSError(key, 'KeyError');
+    }
+    return _state.iss;
+  }
+
+  /**
+   * Get a piece of information (a request or a response) from the state database.
+   * @param {Message} itemCls Message subclass that described the item.
+   * @param {string} itemType Which request/response that is wanted
+   * @param {Key} key The key to the information in the state database
+   * @return A Message instance
+   */
+  getItem(itemCls, itemType, key){
+    let state = this.getState(key);
+    if (typeof state.claims[itemType] == 'string'){
+      return new itemCls().fromJSON(state.claims[itemType]);
+    }else{
+      return new itemCls(state.claims[itemType]);
+    }
+  }
+
+  /**
+   *  Add a set of parameters and their value to a set of request arguments.
+   * @param {Object} args A dictionary
+   * @param {Message} itemCls The Message subclass that describes the item
+   * @param {string} itemType The type of item, this is one of the parameter
+            names in the Service state class.
+   * @param {Key} key The key to the information in the database
+   * @param {Array<string>} parameters A list of parameters who's values this method
+            will return.
+   * @return A dictionary with keys from the list of parameters and
+            values being the values of those parameters in the item.
+            If the parameter does not a appear in the item it will not appear
+            in the returned dictionary.
+   */
+  extendRequestArgs(args, itemCls, itemType, key, parameters){
+    let item = this.getItem(itemCls, itemType, key);
+    for (var i = 0; i < parameters.length; i++){
+      var parameter = parameters[i];
+      if (item.claims[parameter]){
+        args[parameter] = item.claims[parameter];
       }
     }
-    this.lifeTime = lifeTime;
+    return args;
   }
 
-  createState(receiver, request) {
-    let state = Math.random().toString(26).substring(2, 15);
-    let now = Date.now();
-    let stateInfo = {'client_id': this.client_id, 'as': receiver, 'iat': now};
-    stateInfo = Object.assign(stateInfo, request);
-    this.state = stateInfo;
-    return state;
-  }
-
-  updateTokenInfo(stateInfo, msg) {
-    let tInfo = null;
-    if (stateInfo['token']) {
-      tInfo = stateInfo['token'];
-    } else {
-      tInfo = {};
-    }
-
-    let token = null;
-    try {
-      token = msg['access_token'];
-    } catch (err) {
-      console.log(err);
-    }
-    var exp = 0;
-    if (token) {
-      tInfo['access_token'] = token;
-      if (msg['expires_in']) {
-        exp = msg['expires_in'];
-      } else {
-        if (tInfo['expires_in']) {
-          tInfo['exp'] = Date.now() + tInfo['expires_in'];
-        }
-      }
-
-      if (exp) {
-        tInfo['expires_in'] = exp;
-        tInfo['exp'] = Date.now() + exp;
-      }
-
-      let claims = ['token_type', 'scope'];
-      for (let i = 0; i < claims.length; i++) {
-        let claim = claims[i];
-        try {
-          if (msg[claim]) {
-            tInfo[claim] = msg[claim];
-          }
-        } catch (err) {
-          console.log(err);
-        }
-      }
-
-      stateInfo['token'] = tInfo;
-    }
-    return stateInfo;
-  }
-
-  addResponse(response, state) {
-    state = state || '';
-
-    if (!state) {
-      state = response['state'];
-    }
-    let stateInfo = this.state;
-    if (!stateInfo) {
-      stateInfo = this[state];
-    }
-
-    if (response['code']) {
-      stateInfo['code'] = response['code'];
-    }
-
-    this.updateTokenInfo(stateInfo, response);
-    let claims = ['id_token', 'refresh_token'];
-    for (let i = 0; i < claims.length; i++) {
-      let claim = claims[i];
-      if (response[claim]) {
-        stateInfo[claim] = response[claim];
-      }
-    }
-    this.state = stateInfo;
-    return stateInfo;
-  }
-
-
-  addInfo(state, kwargs) {
-    let stateInfo = this[state];
-    stateInfo = Object.assign(stateInfo, kwargs);
-    this[state] = stateInfo;
-    return stateInfo;
-  }
-
-  bindNonceToState(nonce, state) {
-    this.db['nonce_' + nonce] = state;
-  }
-
-  nonceToState(nonce) {
-    return this.db['nonce_' + nonce];
-  }
-
-  getTokenInfo(state, now, kwargs) {
-    let tInfo = this[state]['token'];
-    var exp = null;
-    try {
-      exp = tInfo['exp'];
-    } catch (err) {
-      console.log(err);
-    }
-    var now = null;
-    if (!now) {
-      now = Date.now();
-    }
-
-    if (now > exp) {
-      console.log('Passed best before');
-    }
-    return tInfo;
-  }
-
-  getTokenInfo(state, request, now, kwargs) {
-    let tInfo = {};
-    if (this.state && this.state['token']) {
-      tInfo = this.state['token'];
-    }
-    try {
-      var exp = tInfo['exp'];
-    } catch (err) {
-      console.log(err);
-    }
-    if (!now) {
-      now = Date.now();
-    }
-    if (now > exp) {
-      throw new Error('Passed best before');
-    }
-    return tInfo;
-  }
-
-  getResponseArgs(state, request, now, kwargs) {
-    let sInfo = {};
-    if (this.dict) {
-      sInfo = this.dict[state];
-    } else {
-      sInfo = this[state];
-    }
-    let tInfo = {};
-    let reqArgs = {};
-    now = now || 0;
-    if (request) {
-      for (let i = 0; i < Object.keys(request.prototype.cParam).length; i++) {
-        let claim = Object.keys(request.prototype.cParam)[i];
-        if (claim === 'access_token') {
-          try {
-            tInfo = this.getTokenInfo(state, now);
-          } catch (err) {
-            continue;
-          }
-          reqArgs[claim] = tInfo['access_token'];
-        } else {
-          if (sInfo[claim]) {
-            reqArgs[claim] = sInfo[claim];
-          }
+  /**
+   * Go through a set of items (by their type) and add the attribute-value
+   * that match the list of parameters to the arguments
+   * If the same parameter occurs in 2 different items then the value in
+   * the later one will be the one used.
+   * 
+   * @param {Object} args Initial set of arguments
+   * @param {Key} key Key to the State information in the state database
+   * @param {Array<string>} parameters A list of parameters that we're looking for
+   * @param {Array<string>} itemTypes A list of item_type specifying which items we
+            are interested in.
+   * @return A possibly augmented set of arguments
+   */
+  multipleExtendRequestArgs(args, key, parameters, itemTypes){
+    let _state = this.getState(key);
+    for (var i = 0; i < itemTypes.length; i++){
+      let typ = itemTypes[i];
+      let _item = new Message(_state.claims[typ]);
+      for (var j = 0; j < parameters.length; j++){
+        let parameter = parameters[j];
+        if (_item.claims && JSON.parse(_item.claims)[parameter]){
+          args[parameter] = JSON.parse(_item.claims)[parameter];
         }
       }
     }
-    return reqArgs;
+    return args;
   }
 
-  getIdToken(state) {
-    return this[state]['idToken'];
+  /**
+   * Store the connection between a nonce value and a state value.
+   * This allows us later in the game to find the state if we have the nonce.
+   * @param {int} nonce 
+   * @param {State} state 
+   */
+  storeNonce2State(nonce, state){
+    this.stateDb.set('_' + nonce + '_', state);
+  }
+
+  /**
+   * Find the state value by providing the nonce value.
+   * Will raise an exception if the nonce value is absent 
+   * from the state data base.
+   * @param {*} nonce 
+   */
+  getStateByNonce(nonce){
+    _state = this.stateDb.get('_nonce_', state);
+    if (_state){
+      return _state;
+    }else{
+      throw new Error(nonce, 'KeyError');
+    }
+  }
+
+  /**
+   *Find the state value by providing the nonce value.
+   * Will raise an exception if the nonce value is absent from the state data base.
+   * @param {*} nonce 
+   */
+  getStateByNonce(nonce){
+    let _state = this.stateDb.get('_' + nonce + '_'); 
+    if (_state){
+      return _state;
+    }else{
+      throw new Error('_nonce_', 'KeyError');
+    }
+  }
+  
+  /**
+   * Create state
+   * @param {string} iss Issuer
+   */
+  createState(iss){
+    let key = Math.random(32);
+    let _state = new State({iss:iss});
+    this.stateDb.set(key, _state);
+    return key;
   }
 }
 
-module.exports.StateJWT = StateJWT;
 module.exports.State = State;
+module.exports.StateInterface = StateInterface;
