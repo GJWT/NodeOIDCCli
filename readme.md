@@ -45,7 +45,7 @@ buildServices(serviceDefinitions, serviceFactory, serviceContext, stateDb, clien
 Takes a dictionary with a reference to which service subclass that should be instantiated as key and specific service 
 configuration for that instance as value.
 
-### List of Service provided:
+### List of services provided:
 
 OAuth2:
 * AccessToken
