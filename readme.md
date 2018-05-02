@@ -14,13 +14,48 @@ OIDCClient is built to allow clients to be constructed that supports any number 
 ## Global Classes
 
 ### Service Class
+```
 Service(serviceContext, stateDb, clientAuthnMethod, conf)
+```
 
 Implements all the functionality that is needed to support any of these services and any future services that 
 follows the same pattern. 
 
+Public Methods
+```
+getRequestParameters({bodyType, method, authnMethod, requestArgs, httpArgs, params}={bodyType: ‘urlEncoded’, method: ‘GET’})
+```
+Builds the request message and constructs the HTTP headers. This is the starting point for a pipeline that will: 
+- construct the request message 
+- add/remove information to/from the request message in the way a specific client authentication method requires. 
+- gather a set of HTTP headers like Content-type and Authorization. 
+- serialize the request message into the necessary format (JSON, urlencoded, signed JWT)
+Returns: Object<string, Object> contains difference information such as the uri, body, and httpArgs based on the service
+ 
+ ```
+parseResponse({info, sformat, state, params}={})
+```
+This the start of a pipeline that will: 
+- Deserializes a response into it's response message class or an ErrorResponse if it's an error message 
+- verifies the correctness of the response by running the verify method belonging to the message class used.
+Returns: Response instance such as an ErrorResponse
+
+```
+updateServiceContext(resp, state, params)
+```
+Modifies the passed in serviceContext based on the parsed response.
+ 
+``
+parseErrorMessage(response, bodyType)
+```
+Deal with a request response
+Returns: ErrorMessage class instance
+
+
 ### ServiceContext Class 
+```
 ServiceContext(keyjar, config, params)
+```
 
 This class keeps information that a client needs to be able to talk to a server. Some of this information comes 
 from configuration and some from dynamic provider info discovery or client registration. But information is also 
@@ -29,18 +64,24 @@ picked up during the conversation with a server.
 ## Global Methods
 
 ### Factory method
+```
 Factory(reqName, serviceContext, stateDb, clientAuthnMethod, serviceConfiguration) 
+```
 
 Global function that fetches the service object based on the service name and initializes the 
 service object with the httpLib, keyJar, and clientAuthenticationMethod params.
 
 ### OicFactory method
+```
 OicFactory(reqName, serviceContext, stateDb, clientAuthnMethod, serviceConfiguration)
+```
 
 A similar factory function, called OicFactory exists in the OIC folder to fetch the OIC service objects
 
 ### buildServices method
+```
 buildServices(serviceDefinitions, serviceFactory, serviceContext, stateDb, clientAuthMethod)
+```
 
 Takes a dictionary with a reference to which service subclass that should be instantiated as key and specific service 
 configuration for that instance as value.
@@ -64,6 +105,13 @@ OIDC:
 * Registration
 * UserInfo
 
+## Client Authentication methods
+* BearerBody
+* BearerHeader
+* ClientSecretBasic
+* ClientSecretJWT
+* ClientSecretPost
+* PrivateKeyJWT
 
 ## Usage Examples
 
