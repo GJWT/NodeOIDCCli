@@ -17,11 +17,11 @@ OIDCClient is built to allow clients to be constructed that supports any number 
 ```
 Service(serviceContext, stateDb, clientAuthnMethod, conf)
 ```
-
 Implements all the functionality that is needed to support any of these services and any future services that 
 follows the same pattern. 
 
-Public Methods
+
+Public Service Methods
 ```
 getRequestParameters({bodyType, method, authnMethod, requestArgs, httpArgs, params}={bodyType: ‘urlEncoded’, method: ‘GET’})
 ```
@@ -32,6 +32,7 @@ Builds the request message and constructs the HTTP headers. This is the starting
 - serialize the request message into the necessary format (JSON, urlencoded, signed JWT)
 Returns: Object<string, Object> contains difference information such as the uri, body, and httpArgs based on the service
  
+ 
  ```
 parseResponse({info, sformat, state, params}={})
 ```
@@ -40,16 +41,19 @@ This the start of a pipeline that will:
 - verifies the correctness of the response by running the verify method belonging to the message class used.
 Returns: Response instance such as an ErrorResponse
 
+
 ```
 updateServiceContext(resp, state, params)
 ```
 Modifies the passed in serviceContext based on the parsed response.
+ 
  
 ```
 parseErrorMessage(response, bodyType)
 ```
 Deal with a request response
 Returns: ErrorMessage class instance
+
 
 
 ### ServiceContext Class 
