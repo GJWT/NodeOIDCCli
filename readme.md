@@ -149,6 +149,7 @@ OIDC:
 * UserInfo
 
 ## Client Authentication methods
+OIDCService supports 6 different client authentication/authorization methods.
 * BearerBody
 * BearerHeader
 * ClientSecretBasic
