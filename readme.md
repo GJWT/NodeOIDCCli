@@ -21,6 +21,7 @@ Implements all the functionality that is needed to support any of these services
 follows the same pattern. 
 
 
+
 Public Service Methods
 ```
 getRequestParameters({bodyType, method, authnMethod, requestArgs, httpArgs, params}={bodyType: ‘urlEncoded’, method: ‘GET’})
@@ -33,6 +34,7 @@ Builds the request message and constructs the HTTP headers. This is the starting
 Returns: Object<string, Object> contains difference information such as the uri, body, and httpArgs based on the service
  
  
+ 
  ```
 parseResponse({info, sformat, state, params}={})
 ```
@@ -42,10 +44,12 @@ This the start of a pipeline that will:
 Returns: Response instance such as an ErrorResponse
 
 
+
 ```
 updateServiceContext(resp, state, params)
 ```
 Modifies the passed in serviceContext based on the parsed response.
+ 
  
  
 ```
@@ -53,6 +57,7 @@ parseErrorMessage(response, bodyType)
 ```
 Deal with a request response
 Returns: ErrorMessage class instance
+
 
 
 
