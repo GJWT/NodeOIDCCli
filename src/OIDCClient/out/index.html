@@ -54,7 +54,141 @@
 
 <header>
     
-        <h2>clientAuth/bearerBody.js</h2>
+        <h2>index.js</h2>
+        
+    
+</header>
+
+<article>
+    <div class="container-overview">
+    
+        
+            <div class="description"><pre>
+OpenID Connect and OAuth2 (O/O) are both request-response protocols. The client sends a request
+and the server responds either direct on the same connection or after a while on another 
+connection.
+<pre>
+When I use client below I refer to a piece of software that implements O/O and works on behalf 
+of an application.
+<pre>
+The client follows the same pattern disregarding which request/response it is dealing with. 
+I does the following when sending a request:
+<pre>
+1) Gathers the request arguments <pre>
+2) If client authentication is involved it gathers the necessary data for that. <pre>
+3) If the chosen client authentication method involved adding information to the 
+request it does so. <pre>
+4) Adds information to the HTTP headers like Content-Type <pre>
+5) Serializes the request into the expected format <pre>
+<pre>
+after that follows the act of sending the request to the server and receiving the response
+from it. Once the response have been received, The client will follow this path:
+<pre>
+1) Deserialize the received message into a internal format <pre>
+2) Verify that the message was correct. That it contains the required claims and that all claims 
+are of the correct data type. If it’s signed and/or encrypted verify signature and/or decrypt. <pre>
+3) Store the received information in a data base and/or passes it on to the application. <pre>
+oidcservice is built to allow clients to be constructed that supports any number and type
+of request-response services. The basic Open ID Connect set is: <pre>
+- Webfinger <pre>
+- Dynamic provider information discovery <pre>
+- Dynamic client registration <pre>
+- Authorization/Authentication request <pre>
+- Access token request <pre>
+- User info request <pre>
+<pre>
+To these one can add services like session management and token introspection. The only thing 
+we can be sure of is that this is not the final set of services, there will be more. And there 
+will be variants of the standard ones. Like when you want to add multi lateral federation 
+support to provider information discovery and client registration.
+<pre>
+Over all it seemed like a good idea to write a piece of code that implements all the 
+functionality that is needed to support any of this services and any future services that 
+follows the same pattern.</div>
+        
+
+        
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+        
+    
+    </div>
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>src/clientAuth/bearerBody.js</h2>
         
     
 </header>
@@ -100,7 +234,7 @@ body.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="clientAuth_bearerBody.js.html">clientAuth/bearerBody.js</a>, <a href="clientAuth_bearerBody.js.html#line1">line 1</a>
+        <a href="src_clientAuth_bearerBody.js.html">src/clientAuth/bearerBody.js</a>, <a href="src_clientAuth_bearerBody.js.html#line1">line 1</a>
     </li></ul></dd>
     
 
@@ -149,7 +283,7 @@ body.</div>
 
 <header>
     
-        <h2>clientAuth/bearerHeader.js</h2>
+        <h2>src/clientAuth/bearerHeader.js</h2>
         
     
 </header>
@@ -195,7 +329,7 @@ information to the request header</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="clientAuth_bearerHeader.js.html">clientAuth/bearerHeader.js</a>, <a href="clientAuth_bearerHeader.js.html#line1">line 1</a>
+        <a href="src_clientAuth_bearerHeader.js.html">src/clientAuth/bearerHeader.js</a>, <a href="src_clientAuth_bearerHeader.js.html#line1">line 1</a>
     </li></ul></dd>
     
 
@@ -244,7 +378,7 @@ information to the request header</div>
 
 <header>
     
-        <h2>clientAuth/clientAuth.js</h2>
+        <h2>src/clientAuth/clientAuth.js</h2>
         
     
 </header>
@@ -289,7 +423,7 @@ client info.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="clientAuth_clientAuth.js.html">clientAuth/clientAuth.js</a>, <a href="clientAuth_clientAuth.js.html#line1">line 1</a>
+        <a href="src_clientAuth_clientAuth.js.html">src/clientAuth/clientAuth.js</a>, <a href="src_clientAuth_clientAuth.js.html#line1">line 1</a>
     </li></ul></dd>
     
 
@@ -338,7 +472,7 @@ client info.</div>
 
 <header>
     
-        <h2>clientAuth/clientSecretBasic.js</h2>
+        <h2>src/clientAuth/clientSecretBasic.js</h2>
         
     
 </header>
@@ -384,7 +518,7 @@ information to the request header such as a username and password.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="clientAuth_clientSecretBasic.js.html">clientAuth/clientSecretBasic.js</a>, <a href="clientAuth_clientSecretBasic.js.html#line3">line 3</a>
+        <a href="src_clientAuth_clientSecretBasic.js.html">src/clientAuth/clientSecretBasic.js</a>, <a href="src_clientAuth_clientSecretBasic.js.html#line3">line 3</a>
     </li></ul></dd>
     
 
@@ -433,7 +567,7 @@ information to the request header such as a username and password.</div>
 
 <header>
     
-        <h2>clientAuth/clientSecretJWT.js</h2>
+        <h2>src/clientAuth/clientSecretJWT.js</h2>
         
     
 </header>
@@ -484,7 +618,7 @@ bytes of the UTF-8 representation of the client_secret as the shared key.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="clientAuth_clientSecretJWT.js.html">clientAuth/clientSecretJWT.js</a>, <a href="clientAuth_clientSecretJWT.js.html#line1">line 1</a>
+        <a href="src_clientAuth_clientSecretJWT.js.html">src/clientAuth/clientSecretJWT.js</a>, <a href="src_clientAuth_clientSecretJWT.js.html#line1">line 1</a>
     </li></ul></dd>
     
 
@@ -533,7 +667,7 @@ bytes of the UTF-8 representation of the client_secret as the shared key.</div>
 
 <header>
     
-        <h2>clientAuth/clientSecretPost.js</h2>
+        <h2>src/clientAuth/clientSecretPost.js</h2>
         
     
 </header>
@@ -584,7 +718,7 @@ These means putting both client_secret and client_id in the request body.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="clientAuth_clientSecretPost.js.html">clientAuth/clientSecretPost.js</a>, <a href="clientAuth_clientSecretPost.js.html#line1">line 1</a>
+        <a href="src_clientAuth_clientSecretPost.js.html">src/clientAuth/clientSecretPost.js</a>, <a href="src_clientAuth_clientSecretPost.js.html#line1">line 1</a>
     </li></ul></dd>
     
 
@@ -633,7 +767,7 @@ These means putting both client_secret and client_id in the request body.</div>
 
 <header>
     
-        <h2>clientAuth/jwsAuth.js</h2>
+        <h2>src/clientAuth/jwsAuth.js</h2>
         
     
 </header>
@@ -678,7 +812,7 @@ Web Tokens.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="clientAuth_jwsAuth.js.html">clientAuth/jwsAuth.js</a>, <a href="clientAuth_jwsAuth.js.html#line4">line 4</a>
+        <a href="src_clientAuth_jwsAuth.js.html">src/clientAuth/jwsAuth.js</a>, <a href="src_clientAuth_jwsAuth.js.html#line4">line 4</a>
     </li></ul></dd>
     
 
@@ -727,7 +861,7 @@ Web Tokens.</div>
 
 <header>
     
-        <h2>clientAuth/privateKeyJWT.js</h2>
+        <h2>src/clientAuth/privateKeyJWT.js</h2>
         
     
 </header>
@@ -774,7 +908,7 @@ sign a JWT using that key.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="clientAuth_privateKeyJWT.js.html">clientAuth/privateKeyJWT.js</a>, <a href="clientAuth_privateKeyJWT.js.html#line1">line 1</a>
+        <a href="src_clientAuth_privateKeyJWT.js.html">src/clientAuth/privateKeyJWT.js</a>, <a href="src_clientAuth_privateKeyJWT.js.html#line1">line 1</a>
     </li></ul></dd>
     
 
@@ -823,7 +957,7 @@ sign a JWT using that key.</div>
 
 <header>
     
-        <h2>service.js</h2>
+        <h2>src/service.js</h2>
         
     
 </header>
@@ -887,7 +1021,7 @@ behaviour is implemented.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="service.js.html">service.js</a>, <a href="service.js.html#line15">line 15</a>
+        <a href="src_service.js.html">src/service.js</a>, <a href="src_service.js.html#line15">line 15</a>
     </li></ul></dd>
     
 
@@ -936,7 +1070,7 @@ behaviour is implemented.</div>
 
 <header>
     
-        <h2>serviceContext.js</h2>
+        <h2>src/serviceContext.js</h2>
         
     
 </header>
@@ -984,7 +1118,7 @@ conversation with a server.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="serviceContext.js.html">serviceContext.js</a>, <a href="serviceContext.js.html#line6">line 6</a>
+        <a href="src_serviceContext.js.html">src/serviceContext.js</a>, <a href="src_serviceContext.js.html#line6">line 6</a>
     </li></ul></dd>
     
 
@@ -1035,7 +1169,7 @@ conversation with a server.</div>
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Mon Apr 30 2018 19:04:29 GMT-0700 (PDT)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Wed May 02 2018 11:15:01 GMT-0700 (PDT)
 </footer>
 
 <script> prettyPrint(); </script>

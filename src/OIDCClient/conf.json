@@ -3,7 +3,7 @@
         "allowUnknownTags": true
     },
     "source": {
-        "include": ["src/clientAuth/", "src/oauth2/", "src/oauth2/service/", "src/oic/", "src/oic/service/", "src/webFinger/", "src/"],
+        "include": ["index.js", "src/clientAuth/", "src/oauth2/", "src/oauth2/service/", "src/oic/", "src/oic/service/", "src/webFinger/", "src/"],
 	"includePattern": ".+\\.js(doc|x)?$",
         "excludePattern": "(^|\\/|\\\\)_"
     },
