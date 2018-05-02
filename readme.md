@@ -45,7 +45,7 @@ updateServiceContext(resp, state, params)
 ```
 Modifies the passed in serviceContext based on the parsed response.
  
-``
+```
 parseErrorMessage(response, bodyType)
 ```
 Deal with a request response
