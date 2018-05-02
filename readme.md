@@ -15,11 +15,13 @@ OIDCClient is built to allow clients to be constructed that supports any number 
 
 ### Service Class
 Service(serviceContext, stateDb, clientAuthnMethod, conf)
+
 Implements all the functionality that is needed to support any of these services and any future services that 
 follows the same pattern. 
 
 ### ServiceContext Class 
 ServiceContext(keyjar, config, params)
+
 This class keeps information that a client needs to be able to talk to a server. Some of this information comes 
 from configuration and some from dynamic provider info discovery or client registration. But information is also 
 picked up during the conversation with a server.
@@ -28,15 +30,18 @@ picked up during the conversation with a server.
 
 ### Factory method
 Factory(reqName, serviceContext, stateDb, clientAuthnMethod, serviceConfiguration) 
+
 Global function that fetches the service object based on the service name and initializes the 
 service object with the httpLib, keyJar, and clientAuthenticationMethod params.
 
 ### OicFactory method
 OicFactory(reqName, serviceContext, stateDb, clientAuthnMethod, serviceConfiguration)
+
 A similar factory function, called OicFactory exists in the OIC folder to fetch the OIC service objects
 
 ### buildServices method
 buildServices(serviceDefinitions, serviceFactory, serviceContext, stateDb, clientAuthMethod)
+
 Takes a dictionary with a reference to which service subclass that should be instantiated as key and specific service 
 configuration for that instance as value.
 
