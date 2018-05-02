@@ -8,7 +8,7 @@ is meant to be transport independent. It’s the middle layer between low level 
 messages and their serialization and deserialization and the upper layer OIDCRP which provides the API that 
 most service implementers should use. 
 
-### Objective :
+## Objective :
 OIDCClient is built to allow clients to be constructed that supports any number and type of request-response services.
 
 
