@@ -14,6 +14,7 @@ OIDCClient is built to allow clients to be constructed that supports any number 
 ## Global Classes
 
 ### Service Class
+Service(serviceContext, stateDb, clientAuthnMethod, conf)
 Implements all the functionality that is needed to support any of these services and any future services that 
 follows the same pattern. 
 
@@ -25,14 +26,17 @@ picked up during the conversation with a server.
 
 ## Global Methods
 
-### Factory(reqName, serviceContext, stateDb, clientAuthnMethod, serviceConfiguration) 
+### Factory method
+Factory(reqName, serviceContext, stateDb, clientAuthnMethod, serviceConfiguration) 
 Global function that fetches the service object based on the service name and initializes the 
 service object with the httpLib, keyJar, and clientAuthenticationMethod params.
 
-### OicFactory(reqName, serviceContext, stateDb, clientAuthnMethod, serviceConfiguration)
+### OicFactory method
+OicFactory(reqName, serviceContext, stateDb, clientAuthnMethod, serviceConfiguration)
 A similar factory function, called OicFactory exists in the OIC folder to fetch the OIC service objects
 
-### buildServices(serviceDefinitions, serviceFactory, serviceContext, stateDb, clientAuthMethod)
+### buildServices method
+buildServices(serviceDefinitions, serviceFactory, serviceContext, stateDb, clientAuthMethod)
 Takes a dictionary with a reference to which service subclass that should be instantiated as key and specific service 
 configuration for that instance as value.
 
@@ -210,4 +214,4 @@ serviceContext.providerInfo.claims['authorization_endpoint'] : https://example.c
 The whole response from the OP was stored in the serviceContext instance so its accessible in the future.
 ```
 
-We can use this information to register the RP with the OP.  ]
+We can use this information to register the RP with the OP.
