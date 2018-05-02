@@ -45,6 +45,26 @@ buildServices(serviceDefinitions, serviceFactory, serviceContext, stateDb, clien
 Takes a dictionary with a reference to which service subclass that should be instantiated as key and specific service 
 configuration for that instance as value.
 
+### List of Service provided:
+
+OAuth2:
+* AccessToken
+* Authorization
+* ProviderInfoDiscovery
+* RefreshAccessToken
+
+OIDC:
+* AccessToken
+* Authorization
+* CheckId
+* CheckSession
+* EndSession
+* ProviderInfoDiscovery
+* RefreshAccessToken
+* Registration
+* UserInfo
+
+
 ## Usage Examples
 
 ```
