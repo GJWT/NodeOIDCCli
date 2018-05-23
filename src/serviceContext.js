@@ -1,27 +1,16 @@
-const State = require('./state.js').State;
 const crypto = require('crypto');
 const KeyJar = require('../nodeOIDCMsg/src/oicMsg/keystore/KeyJar').KeyJar;
-const assert = require('chai').assert;
 
-/**
- * @fileoverview This class keeps information that a client needs to be
- * able to talk to a server. Some of this information comes from
- * configuration and some from dynamic provider info discovery or client
- * registration. But information is also picked up during the
- * conversation with a server.
- */
-
-/**
- * serviceContext
- * @class
- * @constructor
+/** 
+ * ServiceContext
+ * This class keeps information that a client needs to be able to talk
+ * to a server. Some of this information comes from configuration and some
+ * from dynamic provider info discovery or client registration.
+ * But information is also picked up during the conversation with a server.
+ * @class 
  */
 class ServiceContext {
   /**
-   * This class keeps information that a client needs to be able to talk
-   * to a server. Some of this information comes from configuration and some
-   * from dynamic provider info discovery or client registration.
-   * But information is also picked up during the conversation with a server.
    * @param {KeyJar} keyjar OIDCMsg KeyJar instance that contains the RP signing and encyrpting keys
    * @param {Object<string, string>} config Client configuration
    * @param {Object<string, string>} params Other attributes that might be needed
@@ -34,9 +23,7 @@ class ServiceContext {
     this.providerInfo = {};
     this.registrationResponse = {};
     this.kid = {'sig': {}, 'enc': {}};
-
     this.config = config || {};
-
     this.baseUrl = '';
     this.requestDir = '';
     this.allow = {};
@@ -45,13 +32,11 @@ class ServiceContext {
     this.cId = '';
     this.cSecret = '';
     this.issuer = '';
-
-    let serviceContext =
-        ['client_id', 'issuer', 'client_secret', 'base_url', 'requests_dir'];
+    let serviceContext = ['client_id', 'issuer', 'client_secret', 'base_url', 'requests_dir'];
     let defaultVal = '';
 
-    if (params) {
-      for (var i = 0; i < Object.keys(params).length; i++) {
+    if (params){
+      for (var i = 0; i < Object.keys(params).length; i++){
         let key = Object.keys(params)[i];
         let val = params[key];
         this[key] = val;
@@ -72,10 +57,9 @@ class ServiceContext {
       } else if (attr === 'requests_dir') {
         this.request_dir = this.config[attr] || defaultVal;
       }
-    };
+    }
 
-    let providerInfo =
-        ['allow', 'client_preferences', 'behaviour', 'provider_info'];
+    let providerInfo = ['allow', 'client_preferences', 'behaviour', 'provider_info'];
     defaultVal = {};
     for (let i = 0; i < providerInfo.length; i++) {
       let attr = providerInfo[i];
@@ -88,7 +72,7 @@ class ServiceContext {
       } else if (attr === 'provider_info') {
         this.provider_info = this.config[attr] || defaultVal;
       }
-    };
+    }
 
     try {
       this.redirectUris = this.config['redirect_uris'];
@@ -99,7 +83,7 @@ class ServiceContext {
     try {
       this.callback = this.config['callback'];
     } catch (err) {
-      this.callback = {}
+      this.callback = {};
     }
 
     if (config && Object.keys(config).indexOf('keydefs') !== -1) {
@@ -142,9 +126,9 @@ class ServiceContext {
       m.update(this.issuer);
     }
     m.update(this.baseUrl);
-    if (!path.startsWith('/')) {
-      return [this.baseUrl + '/' + path + '/' + m.digest('hex')];
-    } else {
+    if (!path.startsWith('/')){
+      return [this.baseUrl + '/' + path+ '/' +  m.digest('hex')];
+    }else{
       return [this.baseUrl + path + '/' + m.digest('hex')];
     }
   }
@@ -152,16 +136,16 @@ class ServiceContext {
   /**
    *  A 1<->1 map is maintained between a URL pointing to a file and
    * the name of the file in the file system.
-   *
+   * 
    * As an example if the base_url is 'https://example.com' and a jwks_uri
    * is 'https://example.com/jwks_uri.json' then the filename of the
    * corresponding file on the local filesystem would be 'jwks_uri'.
    * Relative to the directory from which the RP instance is run.
-   *
-   * @param {*} webName
+   * 
+   * @param {*} webName 
    */
   filenameFromWebName(webName) {
-    if (webName.startsWith(this.baseUrl) == false) {
+    if (webName.startsWith(this.baseUrl) == false){
       console.log('ValueError');
     }
     let name = webName.substring(this.baseUrl.length, webName.length);
