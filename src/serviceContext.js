@@ -28,11 +28,11 @@ class ServiceContext {
         this[key] = val;
       }
     }
-
+    
     this.client_id = this.config['client_id'] || defaultVal;
     this.issuer = this.config['issuer'] || defaultVal;
     this.client_secret = this.config['client_secret'] || defaultVal;
-    this.setclient_secret(this.client_secret);    
+    this.setClientSecret(this.client_secret);    
     this.base_url = this.config['base_url'] || defaultVal;
     this.request_dir = this.config['requests_dir'] || defaultVal;
 
@@ -48,24 +48,20 @@ class ServiceContext {
       this.redirectUris = [null];
     }
 
-    try {
-      this.callback = this.config['callback'];
-    } catch (err) {
-      this.callback = {};
-    }
+    this.callback = this.config['callback'] || {};
 
     if (config && Object.keys(config).indexOf('keydefs') !== -1) {
-      this.keyjar = this.buildKeyJar(config['keydefs'], this.keyjar)[1];
+      this.keyjar = this.keyjar.buildKeyJar(config['keydefs'], this.keyjar)[1];
     }
 
     return this;
   }
 
-  getclient_secret() {
+  getClientSecret() {
     return this.client_secret;
   }
 
-  setclient_secret(val) {
+  setClientSecret(val) {
     if (!val) {
       this.client_secret = '';
     } else {
@@ -107,10 +103,10 @@ class ServiceContext {
    * 
    * As an example if the base_url is 'https://example.com' and a jwks_uri
    * is 'https://example.com/jwks_uri.json' then the filename of the
-   * corresponding file on the local filesystem would be 'jwks_uri'.
+   * corresponding file on the local filesystem would be 'jwks_uri.json.
    * Relative to the directory from which the RP instance is run.
    * 
-   * @param {*} webName 
+   * @param {string} webName 
    */
   filenameFromWebName(webName) {
     if (webName.startsWith(this.base_url) == false){
