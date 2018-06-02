@@ -1,6 +1,30 @@
 const crypto = require('crypto');
 const KeyJar = require('../nodeOIDCMsg/src/oicMsg/keystore/KeyJar').KeyJar;
 
+const ATTRMAP = {
+  'userinfo': {
+    'sign': 'userinfo_signed_response_alg',
+    'alg': 'userinfo_encrypted_response_alg',
+    'enc': 'userinfo_encrypted_response_enc'
+  },
+  'id_token': {
+    'sign': 'id_token_signed_response_alg',
+    'alg': 'id_token_encrypted_response_alg',
+    'enc': 'id_token_encrypted_response_enc'
+  },
+  'request': {
+    'sign': 'request_object_signing_alg',
+    'alg': 'request_object_encryption_alg',
+    'enc': 'request_object_encryption_enc'
+  }
+};
+
+const DEFAULT_SIGN_ALG = {
+  'userinfo': 'RS256',
+  'request': 'RS384',
+  'id_token': 'ES384',
+};
+
 /** 
  * This class keeps information that a client needs to be able to talk
  * to a server. Some of this information comes from configuration and some
@@ -120,6 +144,59 @@ class ServiceContext {
       return splitName[splitName.length - 1];
     }
   }
+
+  /**
+   * Reformat the crypto algorithm information gathered from a 
+   * client registration response into something more palatable.
+   * 
+   * @param {string} typ: 'id_token', 'userinfo' or 'request_object'
+   */
+  signEncAlgs(typ) {
+    let serviceContext = this;
+    let resp = {};
+    for (let i = 0; i < Object.keys(ATTRMAP[typ]).length; i++) {
+        let key = Object.keys(ATTRMAP[typ])[i];
+        let val = ATTRMAP[typ][key];
+        if (serviceContext.registrationResponse && serviceContext.registrationResponse[val]){
+        resp[key] = serviceContext.registrationResponse[val];
+        }else if (key === 'sign') {
+        try {
+            resp[key] = DEFAULT_SIGN_ALG[typ];
+        } catch (err) {
+            return;
+        }
+        }
+    }
+    return resp;
+  }
+
+  /**
+   * Verifies that the algorithm to be used are supported by the other side.
+   * This will look at provider information either statically configured or 
+   * obtained through dynamic provider info discovery.
+   * 
+   * @param {string} alg The algorithm specification
+   * @param {string} usage In which context the 'alg' will be used.
+   * The following contexts are supported:
+   *        - userinfo
+   *        - id_token
+   *        - request_object
+   *        - token_endpoint_auth
+   * @param {string} typ Type of alg
+   *        - signing_alg 
+   *        - encryption_alg
+   *        - encryption_enc
+   */
+  verifyAlgSupport(alg, usage, typ) {
+    let serviceContext = this;
+    let supported = serviceContext.providerInfo[usage + '_' + typ + '_values_supported'];
+    if (supported.indexOf(alg) !== -1) {
+      return true;
+    } else {
+      return false;
+    }
+  }
 }
+
 
 module.exports.ServiceContext = ServiceContext;
